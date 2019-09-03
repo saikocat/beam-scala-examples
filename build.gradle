@@ -1,4 +1,12 @@
 apply from: 'gradle/scalametalbloop.gradle'
+apply plugin: 'scala'
 
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
 
+dependencies {
+    compile group: 'org.scala-lang', name: 'scala-library', version: scalaVersion
+
+    compileOnly group: "org.apache.beam", name: "beam-runners-google-cloud-dataflow-java", version: beamVersion
+    compileOnly group: "org.apache.beam", name: "beam-runners-direct-java", version: beamVersion
 }
