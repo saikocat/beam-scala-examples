@@ -1,2 +1,11 @@
 *.class
 *.log
+
+bin/
+build/
+.bloop/
+.classpath
+.gradle/
+.metals/
+.project
+.settings/
