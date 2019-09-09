@@ -1,5 +1,9 @@
+plugins {
+    id 'scala'
+    id 'com.github.johnrengelman.shadow' version "$shadowVersion"
+}
+
 apply from: 'gradle/scalametalbloop.gradle'
-apply plugin: 'scala'
 
 sourceCompatibility = 1.8
 targetCompatibility = 1.8
@@ -9,4 +13,15 @@ dependencies {
 
     compileOnly group: "org.apache.beam", name: "beam-runners-google-cloud-dataflow-java", version: beamVersion
     compileOnly group: "org.apache.beam", name: "beam-runners-direct-java", version: beamVersion
+}
+
+shadowJar {
+    baseName = project.name + '-all'
+    version  = '0.1.0-SNAPSHOT'
+
+    manifest {
+        attributes(
+            'Main-Class': 'org.apache.beam.examples.MinimalWordCount'
+        )
+    }
 }
