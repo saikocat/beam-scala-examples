@@ -49,4 +49,12 @@ object MinimalWordCount {
   def filterNotEmpty: SerializableFunction[String, Boolean] = new SerializableFunction[String, Boolean] {
     override def apply(input: String): Boolean = input.nonEmpty
   }
+
+  def fck: ProcessFunction[String, java.lang.Boolean] = new NamedProcessFn[String, java.lang.Boolean] {
+    override def apply(input: String): java.lang.Boolean = {
+      filterNotEmpty.asInstanceOf[String => java.lang.Boolean](input)
+    }
+  }
 }
+
+trait NamedProcessFn[T, U] extends ProcessFunction[T, U]
