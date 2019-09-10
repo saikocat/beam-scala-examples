@@ -32,3 +32,14 @@ spotless {
     scalafmt("$scalafmtVersion").configFile('.scalafmt.conf')
   }
 }
+
+tasks.withType(ScalaCompile) {
+    scalaCompileOptions.with {
+       additionalParameters = [
+           '-feature', '-unchecked', '-deprecation',
+           '-Xfatal-warnings',
+           '-Ywarn-unused-import',
+           '-Ywarn-unused:imports'
+        ]
+    }
+}
