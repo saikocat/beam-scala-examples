@@ -1,6 +1,7 @@
 plugins {
     id 'scala'
     id 'com.github.johnrengelman.shadow' version "$shadowVersion"
+    id "com.diffplug.gradle.spotless" version "$spotlessVersion"
 }
 
 apply from: 'gradle/scalametalbloop.gradle'
@@ -24,4 +25,10 @@ shadowJar {
             'Main-Class': 'org.apache.beam.examples.MinimalWordCount'
         )
     }
+}
+
+spotless {
+  scala {
+    scalafmt("$scalafmtVersion").configFile('.scalafmt.conf')
+  }
 }
