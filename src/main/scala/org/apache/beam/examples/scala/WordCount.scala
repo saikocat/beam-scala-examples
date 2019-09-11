@@ -4,6 +4,8 @@ import org.apache.beam.examples.common.ExampleUtils
 import org.apache.beam.sdk.metrics.{Counter, Distribution, Metrics}
 import org.apache.beam.sdk.transforms.DoFn
 import org.apache.beam.sdk.transforms.DoFn.{Element, OutputReceiver, ProcessElement}
+import org.apache.beam.sdk.transforms.SimpleFunction
+import org.apache.beam.sdk.values.KV
 
 object WordCount {
   def main(args: Array[String]): Unit = {}
@@ -23,5 +25,10 @@ object WordCount {
         if (!word.isEmpty) receiver.output(word)
       }
     }
+  }
+
+  class FormatAsTextFn extends SimpleFunction[KV[String, JLong], String] {
+    override def apply(input: KV[String, JLong]): String =
+      s"${input.getKey}: ${input.getValue}"
   }
 }
