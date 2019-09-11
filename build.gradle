@@ -22,7 +22,7 @@ shadowJar {
 
     manifest {
         attributes(
-            'Main-Class': 'org.apache.beam.examples.MinimalWordCount'
+            'Main-Class': 'org.apache.beam.examples.scala.MinimalWordCount'
         )
     }
 }

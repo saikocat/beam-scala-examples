@@ -1,4 +1,4 @@
-package org.apache.beam.examples
+package org.apache.beam.examples.scala
 
 import org.apache.beam.sdk.Pipeline
 import org.apache.beam.sdk.io.TextIO
