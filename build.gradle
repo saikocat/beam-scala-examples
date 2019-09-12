@@ -14,17 +14,10 @@ dependencies {
 
     compileOnly group: 'org.apache.beam', name: 'beam-runners-google-cloud-dataflow-java', version: beamVersion
     compileOnly group: 'org.apache.beam', name: 'beam-runners-direct-java', version: beamVersion
-}
 
-shadowJar {
-    baseName = project.name + '-all'
-    version  = '0.1.0-SNAPSHOT'
-
-    manifest {
-        attributes(
-            'Main-Class': 'org.apache.beam.examples.scala.MinimalWordCount'
-        )
-    }
+    runtime group: 'org.slf4j', name: 'slf4j-jdk14', version: slf4jVersion
+    runtime group: 'org.apache.beam', name: 'beam-runners-google-cloud-dataflow-java', version: beamVersion
+    runtime group: 'org.apache.beam', name: 'beam-runners-direct-java', version: beamVersion
 }
 
 spotless {
@@ -42,4 +35,22 @@ tasks.withType(ScalaCompile) {
            '-Ywarn-unused:imports'
         ]
     }
+}
+
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+
+task runnerJar(type: ShadowJar) {
+    baseName = project.name + '-runtime'
+    version = "0.1.0"
+    classifier = 'SNAPSHOT'
+    manifest {
+        attributes(
+            'Implementation-Title': 'Word Count',
+            'Implementation-Version': version,
+            'Main-Class': 'org.apache.beam.examples.scala.WordCount'
+        )
+    }
+    from sourceSets.main.output
+    configurations = [ project.configurations.runtime ]
+    mergeServiceFiles()
 }
