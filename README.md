@@ -5,7 +5,7 @@ using [Scio](https://github.com/spotify/scio) API.
 # Progress
 ## Word Count
 - [x] Minimal Word Count
-- [ ] Word Count
+- [x] Word Count
 - [ ] Debugging Word Count
 - [ ] Windowed Word Count
 ## Complete
@@ -17,6 +17,21 @@ using [Scio](https://github.com/spotify/scio) API.
 Clean up code formatting, treat warnings as errors and build the FatJar
 ```
 $ gradle spotlessApply compileScala shadowJar
+```
+
+# Run
+## Word Count
+### Minimal Word Count
+```
+$ java -cp build/libs/beam-scala-examples-runtime-0.1.0-SNAPSHOT.jar \
+    org.apache.beam.examples.scala.MinimalWordCount
+```
+
+### Word Count
+```
+$ java -cp build/libs/beam-scala-examples-runtime-0.1.0-SNAPSHOT.jar \
+    org.apache.beam.examples.scala.WordCount \
+    --output=/tmp/wordcount
 ```
 
 # License
