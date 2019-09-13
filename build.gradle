@@ -4,8 +4,12 @@ plugins {
     id 'com.diffplug.gradle.spotless' version "$spotlessVersion"
 }
 
-apply from: 'gradle/scalametalbloop.gradle'
 apply from: 'gradle/lint.gradle'
+
+repositories {
+   jcenter()
+   mavenCentral()
+}
 
 sourceCompatibility = 1.8
 targetCompatibility = 1.8

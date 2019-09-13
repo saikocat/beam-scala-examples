@@ -35,5 +35,6 @@ object MinimalWordCount {
       .apply(TextIO.write().to("/tmp/minimal-wordcounts"))
 
     pipeline.run().waitUntilFinish()
+    ()
   }
 }

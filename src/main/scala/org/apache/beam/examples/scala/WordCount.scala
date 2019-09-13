@@ -29,23 +29,24 @@ object WordCount {
     @Description("Path of the file to read from")
     @Default.String("gs://apache-beam-samples/shakespeare/kinglear.txt")
     def getInputFile: String
-    def setInputFile(path: String)
+    def setInputFile(path: String): Unit
 
     @Description("Path of the file to write to")
     @Validation.Required
     def getOutput: String
-    def setOutput(path: String)
+    def setOutput(path: String): Unit
   }
 
   def runWordCount(options: WordCountOptions): Unit = {
-    val p: Pipeline = Pipeline.create(options)
+    val pipeline: Pipeline = Pipeline.create(options)
 
-    p.apply("ReadLines", TextIO.read().from(options.getInputFile))
+    pipeline.apply("ReadLines", TextIO.read().from(options.getInputFile))
       .apply(new CountWords())
       .apply(MapElements.via(new FormatAsTextFn()))
       .apply("WriteCounts", TextIO.write().to(options.getOutput))
 
-    p.run().waitUntilFinish()
+    pipeline.run().waitUntilFinish()
+    ()
   }
 
   /** Tokenizes lines of text into individual words */
@@ -63,6 +64,7 @@ object WordCount {
       for (word <- element.split(ExampleUtils.TOKENIZER_PATTERN)) yield {
         if (!word.isEmpty) receiver.output(word)
       }
+      ()
     }
   }
 
