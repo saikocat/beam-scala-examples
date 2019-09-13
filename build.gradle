@@ -23,6 +23,8 @@ dependencies {
     runtime group: 'org.slf4j', name: 'slf4j-jdk14', version: slf4jVersion
     runtime group: 'org.apache.beam', name: 'beam-runners-google-cloud-dataflow-java', version: beamVersion
     runtime group: 'org.apache.beam', name: 'beam-runners-direct-java', version: beamVersion
+    // Examples actually depends on hamcrest :C
+    runtime group: 'org.hamcrest', name: 'hamcrest-all', version: hamcrestVersion
 }
 
 spotless {

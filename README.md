@@ -6,7 +6,7 @@ using [Scio](https://github.com/spotify/scio) API.
 ## Word Count
 - [x] Minimal Word Count
 - [x] Word Count
-- [ ] Debugging Word Count
+- [x] Debugging Word Count
 - [ ] Windowed Word Count
 ## Complete
 ## Cookbook
@@ -33,6 +33,15 @@ $ java -cp build/libs/beam-scala-examples-runtime-0.1.0-SNAPSHOT.jar \
     org.apache.beam.examples.scala.WordCount \
     --output=/tmp/wordcount
 ```
+
+### Debugging Word Count
+```
+$ java -cp ./build/libs/beam-scala-examples-runtime-0.1.0-SNAPSHOT.jar \
+    org.apache.beam.examples.scala.DebuggingWordCount \
+    --filterPattern="Florish|stomach" \
+    --output=/tmp/bogus-donot-need
+```
+
 
 # License
 Licensed under the Apache License, Version 2.0: http://www.apache.org/licenses/LICENSE-2.0
