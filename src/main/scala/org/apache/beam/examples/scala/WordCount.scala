@@ -40,7 +40,8 @@ object WordCount {
   def runWordCount(options: WordCountOptions): Unit = {
     val pipeline: Pipeline = Pipeline.create(options)
 
-    pipeline.apply("ReadLines", TextIO.read().from(options.getInputFile))
+    pipeline
+      .apply("ReadLines", TextIO.read().from(options.getInputFile))
       .apply(new CountWords())
       .apply(MapElements.via(new FormatAsTextFn()))
       .apply("WriteCounts", TextIO.write().to(options.getOutput))
