@@ -5,6 +5,7 @@ plugins {
 }
 
 apply from: 'gradle/scalametalbloop.gradle'
+apply from: 'gradle/lint.gradle'
 
 sourceCompatibility = 1.8
 targetCompatibility = 1.8
@@ -24,17 +25,6 @@ spotless {
   scala {
     scalafmt("$scalafmtVersion").configFile('.scalafmt.conf')
   }
-}
-
-tasks.withType(ScalaCompile) {
-    scalaCompileOptions.with {
-       additionalParameters = [
-           '-feature', '-unchecked', '-deprecation',
-           '-Xfatal-warnings',
-           '-Ywarn-unused-import',
-           '-Ywarn-unused:imports'
-        ]
-    }
 }
 
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
