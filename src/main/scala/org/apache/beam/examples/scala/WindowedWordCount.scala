@@ -8,14 +8,24 @@ import org.joda.time.{Duration, Instant}
 
 import org.apache.beam.sdk.{Pipeline, PipelineResult}
 import org.apache.beam.sdk.io.TextIO
-import org.apache.beam.examples.common.{ExampleBigQueryTableOptions, ExampleOptions, WriteOneFilePerWindow}
+import org.apache.beam.examples.common.{
+  ExampleBigQueryTableOptions,
+  ExampleOptions,
+  WriteOneFilePerWindow
+}
 import org.apache.beam.sdk.transforms.{DoFn, MapElements, ParDo}
-import org.apache.beam.sdk.options.{Default, DefaultValueFactory, Description, PipelineOptions, PipelineOptionsFactory}
+import org.apache.beam.sdk.options.{
+  Default,
+  DefaultValueFactory,
+  Description,
+  PipelineOptions,
+  PipelineOptionsFactory
+}
 import org.apache.beam.sdk.transforms.windowing.{FixedWindows, Window}
 import org.apache.beam.sdk.values.{KV, PCollection}
 
 object WindowedWordCount {
-  final val WINDOW_SIZE = 1 // Default window duration in minutes
+  final val WINDOW_SIZE = 10 // Default window duration in minutes
 
   def main(args: Array[String]): Unit = {
     val options = PipelineOptionsFactory
@@ -35,13 +45,11 @@ object WindowedWordCount {
 
     val input: PCollection[String] = pipeline
       .apply(TextIO.read().from(options.getInputFile))
-      // artificial add timestamp
+        // artificially add timestamp to each record
       .apply(ParDo.of(new AddTimestampFn(minTimestamp, maxTimestamp)))
 
     val windowedWords: PCollection[String] = input.apply(
-      Window.into(
-        FixedWindows.of(
-          Duration.standardMinutes(options.getWindowSize.toLong))))
+      Window.into(FixedWindows.of(Duration.standardMinutes(options.getWindowSize.toLong))))
 
     val wordCounts: PCollection[KV[String, JLong]] =
       windowedWords.apply(new WordCount.CountWords())
@@ -52,17 +60,18 @@ object WindowedWordCount {
      * writes must be idempotent, but the details of writing to files is elided here.
      */
     wordCounts
-        .apply(MapElements.via(new WordCount.FormatAsTextFn()))
-        .apply(new WriteOneFilePerWindow(output, options.getNumShards));
+      .apply(MapElements.via(new WordCount.FormatAsTextFn()))
+      .apply(new WriteOneFilePerWindow(output, options.getNumShards));
 
     val result: PipelineResult = pipeline.run()
     Try(result.waitUntilFinish()) match {
-      case Success(state@_) => ()
-      case Failure(ex@_) => result.cancel(); ()
+      case Success(state @ _) => ()
+      case Failure(ex @ _) => result.cancel(); ()
     }
   }
 
-  trait Options extends WordCount.WordCountOptions
+  trait Options
+      extends WordCount.WordCountOptions
       with ExampleOptions
       with ExampleBigQueryTableOptions {
     @Description("Fixed window duration, in minutes")
@@ -86,16 +95,13 @@ object WindowedWordCount {
   }
 
   class DefaultToCurrentSystemTime extends DefaultValueFactory[Long] {
-    override def create(options: PipelineOptions) = {
+    override def create(options: PipelineOptions) =
       System.currentTimeMillis()
-    }
   }
 
   class DefaultToMinTimestampPlusOneHour extends DefaultValueFactory[Long] {
-    override def create(options: PipelineOptions): Long = {
-      options.as(classOf[Options])
-        .getMinTimestampMillis + Duration.standardHours(1).getMillis
-    }
+    override def create(options: PipelineOptions): Long =
+      options.as(classOf[Options]).getMinTimestampMillis + Duration.standardHours(1).getMillis
   }
 
   class AddTimestampFn(private val minTimestamp: Instant, private val maxTimestamp: Instant)
