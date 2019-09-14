@@ -70,6 +70,21 @@ object BigQueryTornadoes {
     ()
   }
 
+  // Monkey patching this method since current latest release v2.15.0 doesn't
+  // have this method
+  implicit class TypeReadWihSelectedFieldsCompat(tr: TypedRead[TableRow]) {
+    import com.google.cloud.bigquery.storage.v1beta1.ReadOptions.TableReadOptions
+
+    def withSelectedFields(fields: JList[String]): BigQueryIO.TypedRead[TableRow] = {
+      val tableReadOptions: TableReadOptions =
+        TableReadOptions
+          .newBuilder()
+          .addAllSelectedFields(fields)
+          .build()
+      tr.withReadOptions(tableReadOptions)
+    }
+  }
+
   /**
     * Options supported by [BigQueryTornadoes].
     *
