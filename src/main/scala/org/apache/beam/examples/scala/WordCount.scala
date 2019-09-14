@@ -1,6 +1,7 @@
 package org.apache.beam.examples.scala
 
 import org.apache.beam.examples.common.ExampleUtils
+import org.apache.beam.examples.scala.typealias._
 import org.apache.beam.sdk.Pipeline
 import org.apache.beam.sdk.io.TextIO
 import org.apache.beam.sdk.metrics.{Counter, Distribution, Metrics}

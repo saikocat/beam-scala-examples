@@ -13,6 +13,7 @@ import org.apache.beam.examples.common.{
   ExampleOptions,
   WriteOneFilePerWindow
 }
+import org.apache.beam.examples.scala.typealias._
 import org.apache.beam.sdk.transforms.{DoFn, MapElements, ParDo}
 import org.apache.beam.sdk.options.{
   Default,
