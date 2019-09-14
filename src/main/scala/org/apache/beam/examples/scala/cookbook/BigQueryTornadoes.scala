@@ -103,7 +103,7 @@ object BigQueryTornadoes {
 
     @Description(
       "BigQuery table to write to, specified as <project_id>:<dataset_id>.<table_id>. " +
-      "The dataset must already exist.")
+        "The dataset must already exist.")
     @Validation.Required
     def getOutput: String
     def setOutput(value: String): Unit
