@@ -7,7 +7,7 @@ using [Scio](https://github.com/spotify/scio) API.
 - [x] Minimal Word Count
 - [x] Word Count
 - [x] Debugging Word Count
-- [ ] Windowed Word Count
+- [x] Windowed Word Count
 ## Complete
 ## Cookbook
 ## Snippets
@@ -16,7 +16,7 @@ using [Scio](https://github.com/spotify/scio) API.
 # Build
 Clean up code formatting, treat warnings as errors and build the FatJar
 ```
-$ gradle spotlessApply compileScala shadowJar
+$ gradle spotlessApply runtimeJar
 ```
 
 # Run
@@ -40,6 +40,14 @@ $ java -cp ./build/libs/beam-scala-examples-runtime-0.1.0-SNAPSHOT.jar \
     org.apache.beam.examples.scala.DebuggingWordCount \
     --filterPattern="Florish|stomach" \
     --output=/tmp/bogus-donot-need
+```
+
+### Windowed Word Count
+```
+$ java -cp ./build/libs/beam-scala-examples-runtime-0.1.0-SNAPSHOT.jar \
+    org.apache.beam.examples.scala.WindowedWordCount \
+    --windowSize=10 \
+    --output=/tmp/wordcount-windowed
 ```
 
 
