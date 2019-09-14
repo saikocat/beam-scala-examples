@@ -12,7 +12,7 @@ using [Scio](https://github.com/spotify/scio) API.
 ## Cookbook
 - [x] BigQueryTornadoes
 - [x] CombinePerKeyExamples
-- [ ] DistinctExample
+- [x] DistinctExample
 - [ ] FilterExamples
 - [ ] JoinExamples
 - [ ] MaxPerKeyExamples
