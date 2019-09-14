@@ -10,6 +10,13 @@ using [Scio](https://github.com/spotify/scio) API.
 - [x] Windowed Word Count
 ## Complete
 ## Cookbook
+- [x] BigQueryTornadoes
+- [ ] CombinePerKeyExamples
+- [ ] DistinctExample
+- [ ] FilterExamples
+- [ ] JoinExamples
+- [ ] MaxPerKeyExamples
+- [ ] TriggerExample
 ## Snippets
 ## Subprocess
 
