@@ -18,17 +18,18 @@ object DistinctExample {
     def getOutput: String
     def setOutput(value: String): Unit
 
-    /** Returns gs://${TEMP_LOCATION}/"deduped.txt". */
-    class OutputFactory extends DefaultValueFactory[String] {
-      override def create(options: PipelineOptions): String =
-        if (Option(options.getTempLocation).nonEmpty) {
-          GcsPath.fromUri(options.getTempLocation).resolve("deduped.txt").toString
-        } else {
-          throw new IllegalArgumentException("Must specify --output or --tempLocation")
-        }
-    }
   }
 
+  /** Returns gs://${TEMP_LOCATION}/"deduped.txt". */
+  class OutputFactory extends DefaultValueFactory[String] {
+    override def create(options: PipelineOptions): String =
+      Option(options.getTempLocation) match {
+        case Some(location) => GcsPath.fromUri(location).resolve("deduped.txt").toString
+        case None => throw new IllegalArgumentException("Must specify --output or --tempLocation")
+      }
+  }
+
+  @throws(classOf[Exception])
   def main(args: Array[String]): Unit = {
     val options = PipelineOptionsFactory
       .fromArgs(args: _*)
