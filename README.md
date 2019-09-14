@@ -11,7 +11,7 @@ using [Scio](https://github.com/spotify/scio) API.
 ## Complete
 ## Cookbook
 - [x] BigQueryTornadoes
-- [ ] CombinePerKeyExamples
+- [x] CombinePerKeyExamples
 - [ ] DistinctExample
 - [ ] FilterExamples
 - [ ] JoinExamples
