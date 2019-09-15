@@ -91,7 +91,7 @@ object JoinExamples {
   class ExtractEventDataFn extends DoFn[TableRow, KV[String, String]] {
     @ProcessElement
     def processElement(ctx: ProcessContext): Unit = {
-      val row: TableRow = ctx.element()
+      val row: TableRow = ctx.element
       val countryCode = row.get("ActionGeo_CountryCode").toString
       val sqlDate = row.get("SQLDATE").toString
       val actor1Name = row.get("Actor1Name").toString
@@ -108,7 +108,7 @@ object JoinExamples {
   class ExtractCountryInfoFn extends DoFn[TableRow, KV[String, String]] {
     @ProcessElement
     def processElement(ctx: ProcessContext): Unit = {
-      val row: TableRow = ctx.element()
+      val row: TableRow = ctx.element
       val countryCode = row.get("FIPSCC").toString
       val countryName = row.get("HumanName").toString
       ctx.output(KV.of(countryCode, countryName))
@@ -121,7 +121,7 @@ object JoinExamples {
   class FormatResultFn extends DoFn[KV[String, String], String] {
     @ProcessElement
     def processElement(ctx: ProcessContext): Unit = {
-      val outputstring = s"Country code: ${ctx.element().getKey}, ${ctx.element().getValue}"
+      val outputstring = s"Country code: ${ctx.element.getKey}, ${ctx.element.getValue}"
       ctx.output(outputstring)
     }
   }
@@ -130,10 +130,10 @@ object JoinExamples {
       extends DoFn[KV[String, CoGbkResult], KV[String, String]] {
     @ProcessElement
     def processElement(ctx: ProcessContext): Unit = {
-      val elm: KV[String, CoGbkResult] = ctx.element()
+      val elm: KV[String, CoGbkResult] = ctx.element
       val countryCode = elm.getKey
       val countryName = elm.getValue.getOnly(countryInfoTag, "none")
-      for (eventInfo <- ctx.element().getValue.getAll(eventInfoTag).asScala) {
+      for (eventInfo <- ctx.element.getValue.getAll(eventInfoTag).asScala) {
         // Generate a string that combines information from both collection values
         ctx.output(KV.of(countryCode, s"Country name: $countryName, Event info: $eventInfo"))
       }

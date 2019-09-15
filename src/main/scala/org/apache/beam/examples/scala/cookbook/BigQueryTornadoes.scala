@@ -115,10 +115,10 @@ object BigQueryTornadoes {
     */
   class ExtractTornadoesFn extends DoFn[TableRow, JInteger] {
     @ProcessElement
-    def processElement(c: ProcessContext): Unit = {
-      val row: TableRow = c.element()
+    def processElement(ctx: ProcessContext): Unit = {
+      val row: TableRow = ctx.element
       if (row.get("tornado").asInstanceOf[Boolean]) {
-        c.output(Integer.parseInt(row.get("month").asInstanceOf[String]))
+        ctx.output(Integer.parseInt(row.get("month").asInstanceOf[String]))
       }
     }
   }
@@ -129,11 +129,11 @@ object BigQueryTornadoes {
     */
   class FormatCountsFn extends DoFn[KV[Integer, JLong], TableRow]() {
     @ProcessElement
-    def processElement(c: ProcessContext): Unit = {
+    def processElement(ctx: ProcessContext): Unit = {
       val row = new TableRow()
-        .set("month", c.element().getKey)
-        .set("tornado_count", c.element().getValue)
-      c.output(row)
+        .set("month", ctx.element.getKey)
+        .set("tornado_count", ctx.element.getValue)
+      ctx.output(row)
     }
   }
 

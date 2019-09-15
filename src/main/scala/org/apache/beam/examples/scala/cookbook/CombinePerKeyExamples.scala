@@ -71,12 +71,12 @@ object CombinePerKeyExamples {
       Metrics.counter(classOf[ExtractLargeWordsFn], "smallerWords")
 
     @ProcessElement
-    def processElement(c: ProcessContext): Unit = {
-      val row: TableRow = c.element()
+    def processElement(ctx: ProcessContext): Unit = {
+      val row: TableRow = ctx.element
       val playName = row.get("corpus").asInstanceOf[String]
       val word = row.get("word").asInstanceOf[String]
       if (word.length >= MIN_WORD_LENGTH) {
-        c.output(KV.of(word, playName))
+        ctx.output(KV.of(word, playName))
       } else {
         // Track how many smaller words we're not including. This information will be
         // visible in the Monitoring UI.
@@ -91,11 +91,11 @@ object CombinePerKeyExamples {
     */
   class FormatShakespeareOutputFn extends DoFn[KV[String, String], TableRow] {
     @ProcessElement
-    def processElement(c: ProcessContext): Unit = {
+    def processElement(ctx: ProcessContext): Unit = {
       val row: TableRow = new TableRow()
-        .set("word", c.element().getKey)
-        .set("all_plays", c.element().getValue)
-      c.output(row)
+        .set("word", ctx.element.getKey)
+        .set("all_plays", ctx.element.getValue)
+      ctx.output(row)
     }
   }
 

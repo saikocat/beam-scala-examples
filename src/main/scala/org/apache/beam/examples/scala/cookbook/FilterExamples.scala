@@ -79,8 +79,8 @@ object FilterExamples {
     */
   class ProjectionFn extends DoFn[TableRow, TableRow] {
     @ProcessElement
-    def processElement(c: ProcessContext): Unit = {
-      val row: TableRow = c.element()
+    def processElement(ctx: ProcessContext): Unit = {
+      val row: TableRow = ctx.element
       // Grab year, month, day, mean_temp from the row
       val year = Integer.parseInt(row.get("year").toString)
       val month = Integer.parseInt(row.get("month").toString)
@@ -92,7 +92,7 @@ object FilterExamples {
         .set("month", month)
         .set("day", day)
         .set("mean_temp", meanTemp)
-      c.output(outRow)
+      ctx.output(outRow)
     }
   }
 
@@ -104,11 +104,11 @@ object FilterExamples {
     */
   class FilterSingleMonthDataFn(monthFilter: JInteger) extends DoFn[TableRow, TableRow] {
     @ProcessElement
-    def processElement(c: ProcessContext): Unit = {
-      val row: TableRow = c.element()
+    def processElement(ctx: ProcessContext): Unit = {
+      val row: TableRow = ctx.element
       val month = Integer.parseInt(row.get("month").toString)
       if (month.equals(this.monthFilter)) {
-        c.output(row)
+        ctx.output(row)
       }
     }
   }
@@ -119,10 +119,10 @@ object FilterExamples {
     */
   class ExtractTempFn extends DoFn[TableRow, JDouble] {
     @ProcessElement
-    def processElement(c: ProcessContext): Unit = {
-      val row: TableRow = c.element()
+    def processElement(ctx: ProcessContext): Unit = {
+      val row: TableRow = ctx.element
       val meanTemp: JDouble = row.get("mean_temp").toString.toDouble
-      c.output(meanTemp)
+      ctx.output(meanTemp)
     }
   }
 
@@ -164,11 +164,11 @@ object FilterExamples {
   // Added this class else scalac complained about unused method in anon
   class ParseAndFilter(globalMeanTemp: PCollectionView[JDouble]) extends DoFn[TableRow, TableRow] {
     @ProcessElement
-    def processElement(c: ProcessContext): Unit = {
-      val meanTemp: JDouble = c.element().get("mean_temp").toString.toDouble
-      val gTemp: JDouble = c.sideInput(globalMeanTemp)
+    def processElement(ctx: ProcessContext): Unit = {
+      val meanTemp: JDouble = ctx.element.get("mean_temp").toString.toDouble
+      val gTemp: JDouble = ctx.sideInput(globalMeanTemp)
       if (meanTemp < gTemp) {
-        c.output(c.element())
+        ctx.output(ctx.element)
       }
     }
   }

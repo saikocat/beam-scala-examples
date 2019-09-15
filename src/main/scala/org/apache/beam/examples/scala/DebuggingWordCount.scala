@@ -54,13 +54,13 @@ object DebuggingWordCount {
     private val unmatchedWords = Metrics.counter(classOf[FilterTextFn], "unmatchedWords")
 
     @ProcessElement
-    def processElement(c: ProcessContext): Unit =
-      if (filter.matcher(c.element.getKey).matches()) {
-        LOG.debug(s"Matched: ${c.element.getKey}")
+    def processElement(ctx: ProcessContext): Unit =
+      if (filter.matcher(ctx.element.getKey).matches()) {
+        LOG.debug(s"Matched: ${ctx.element.getKey}")
         matchedWords.inc()
-        c.output(c.element)
+        ctx.output(ctx.element)
       } else {
-        LOG.trace(s"Did not match: ${c.element.getKey}")
+        LOG.trace(s"Did not match: ${ctx.element.getKey}")
         unmatchedWords.inc()
       }
   }
