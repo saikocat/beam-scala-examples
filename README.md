@@ -21,29 +21,29 @@ using [Scio](https://github.com/spotify/scio) API.
 ## Subprocess
 
 # Build
-Clean up code formatting, treat warnings as errors and build the FatJar
+Clean up code formatting, treat warnings as errors and build the Assembly Jar
 ```
-$ gradle spotlessApply runtimeJar
+$ gradle spotlessApply assemblyJar
 ```
 
 # Run
 ## Word Count
 ### Minimal Word Count
 ```
-$ java -cp build/libs/beam-scala-examples-runtime-0.1.0-SNAPSHOT.jar \
+$ java -cp build/libs/beam-scala-examples-assembly-0.1.0-SNAPSHOT.jar \
     org.apache.beam.examples.scala.MinimalWordCount
 ```
 
 ### Word Count
 ```
-$ java -cp build/libs/beam-scala-examples-runtime-0.1.0-SNAPSHOT.jar \
+$ java -cp build/libs/beam-scala-examples-assembly-0.1.0-SNAPSHOT.jar \
     org.apache.beam.examples.scala.WordCount \
     --output=/tmp/wordcount
 ```
 
 ### Debugging Word Count
 ```
-$ java -cp ./build/libs/beam-scala-examples-runtime-0.1.0-SNAPSHOT.jar \
+$ java -cp ./build/libs/beam-scala-examples-assembly-0.1.0-SNAPSHOT.jar \
     org.apache.beam.examples.scala.DebuggingWordCount \
     --filterPattern="Florish|stomach" \
     --output=/tmp/bogus-donot-need
@@ -51,7 +51,7 @@ $ java -cp ./build/libs/beam-scala-examples-runtime-0.1.0-SNAPSHOT.jar \
 
 ### Windowed Word Count
 ```
-$ java -cp ./build/libs/beam-scala-examples-runtime-0.1.0-SNAPSHOT.jar \
+$ java -cp ./build/libs/beam-scala-examples-assembly-0.1.0-SNAPSHOT.jar \
     org.apache.beam.examples.scala.WindowedWordCount \
     --windowSize=10 \
     --output=/tmp/wordcount-windowed

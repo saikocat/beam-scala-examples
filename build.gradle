@@ -14,17 +14,20 @@ repositories {
 sourceCompatibility = 1.8
 targetCompatibility = 1.8
 
+version = '0.1.0-SNAPSHOT'
+
 dependencies {
-    compile group: 'org.scala-lang', name: 'scala-library', version: scalaVersion
+    implementation group: 'org.scala-lang', name: 'scala-library', version: scalaVersion
 
     compileOnly group: 'org.apache.beam', name: 'beam-runners-google-cloud-dataflow-java', version: beamVersion
     compileOnly group: 'org.apache.beam', name: 'beam-runners-direct-java', version: beamVersion
 
-    runtime group: 'org.slf4j', name: 'slf4j-jdk14', version: slf4jVersion
-    runtime group: 'org.apache.beam', name: 'beam-runners-google-cloud-dataflow-java', version: beamVersion
-    runtime group: 'org.apache.beam', name: 'beam-runners-direct-java', version: beamVersion
+    runtimeOnly group: 'org.slf4j', name: 'slf4j-jdk14', version: slf4jVersion
+    // odd I know to repeat these dependencies but for local direct running, unlike provided cluster
+    runtimeOnly group: 'org.apache.beam', name: 'beam-runners-google-cloud-dataflow-java', version: beamVersion
+    runtimeOnly group: 'org.apache.beam', name: 'beam-runners-direct-java', version: beamVersion
     // Examples actually depends on hamcrest :C
-    runtime group: 'org.hamcrest', name: 'hamcrest-all', version: hamcrestVersion
+    runtimeOnly group: 'org.hamcrest', name: 'hamcrest-all', version: hamcrestVersion
 }
 
 spotless {
@@ -35,10 +38,16 @@ spotless {
 
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 
-task runnerJar(type: ShadowJar) {
-    baseName = project.name + '-runtime'
-    version = "0.1.0"
-    classifier = 'SNAPSHOT'
+// Split up the runnerJar for local compilation and testing, much faster to
+// recompilation of shadowJar
+task dependencyJar(type: ShadowJar) {
+    setAppendix('dependencies')
+    configurations = [ project.configurations.runtimeClasspath ]
+    mergeServiceFiles()
+}
+
+task appJar(type: ShadowJar) {
+    setAppendix('app')
     manifest {
         attributes(
             'Implementation-Title': 'Word Count',
@@ -47,6 +56,26 @@ task runnerJar(type: ShadowJar) {
         )
     }
     from sourceSets.main.output
-    configurations = [ project.configurations.runtime ]
+    configurations = [ ]
     mergeServiceFiles()
 }
+
+// One Assembly FatJar
+task assemblyJar(type: ShadowJar) {
+    // baseName = project.name + '-dependencies'
+    // version = "0.1.0"
+    setAppendix('assembly')
+    manifest {
+        attributes(
+            'Implementation-Title': 'Word Count',
+            'Implementation-Version': version,
+            'Main-Class': 'org.apache.beam.examples.scala.WordCount'
+        )
+    }
+    from sourceSets.main.output
+    configurations = [ project.configurations.runtimeClasspath ]
+    mergeServiceFiles()
+}
+
+tasks.assemble.dependsOn dependencyJar
+tasks.assemble.dependsOn appJar
