@@ -13,7 +13,7 @@ using [Scio](https://github.com/spotify/scio) API.
 - [x] BigQueryTornadoes
 - [x] CombinePerKeyExamples
 - [x] DistinctExample
-- [ ] FilterExamples
+- [x] FilterExamples
 - [ ] JoinExamples
 - [ ] MaxPerKeyExamples
 - [ ] TriggerExample
