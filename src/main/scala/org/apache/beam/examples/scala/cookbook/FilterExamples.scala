@@ -6,19 +6,10 @@ import com.google.api.services.bigquery.model.{TableFieldSchema, TableRow, Table
 import org.apache.beam.examples.scala.typealias._
 import org.apache.beam.sdk.Pipeline
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryIO
-import org.apache.beam.sdk.options.Default
-import org.apache.beam.sdk.options.Description
-import org.apache.beam.sdk.options.PipelineOptions
-import org.apache.beam.sdk.options.PipelineOptionsFactory
-import org.apache.beam.sdk.options.Validation
-import org.apache.beam.sdk.transforms.DoFn
+import org.apache.beam.sdk.options._
+import org.apache.beam.sdk.transforms.{DoFn, Mean, PTransform, ParDo, View}
 import org.apache.beam.sdk.transforms.DoFn.ProcessElement
-import org.apache.beam.sdk.transforms.Mean
-import org.apache.beam.sdk.transforms.PTransform
-import org.apache.beam.sdk.transforms.ParDo
-import org.apache.beam.sdk.transforms.View
-import org.apache.beam.sdk.values.PCollection
-import org.apache.beam.sdk.values.PCollectionView
+import org.apache.beam.sdk.values.{PCollection, PCollectionView}
 import org.slf4j.LoggerFactory
 
 object FilterExamples {
@@ -55,7 +46,7 @@ object FilterExamples {
   }
 
   trait Options extends PipelineOptions {
-    @Description("Table to read from, specified as " + "<project_id>:<dataset_id>.<table_id>")
+    @Description("Table to read from, specified as <project_id>:<dataset_id>.<table_id>")
     @Default.String(WEATHER_SAMPLES_TABLE)
     def getInput: String
     def setInput(value: String): Unit
