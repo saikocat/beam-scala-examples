@@ -15,7 +15,7 @@ using [Scio](https://github.com/spotify/scio) API.
 - [x] DistinctExample
 - [x] FilterExamples
 - [x] JoinExamples
-- [ ] MaxPerKeyExamples
+- [x] MaxPerKeyExamples
 - [ ] TriggerExample
 ## Snippets
 ## Subprocess
