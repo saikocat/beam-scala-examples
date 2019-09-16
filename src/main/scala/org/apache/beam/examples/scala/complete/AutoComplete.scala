@@ -1,16 +1,40 @@
 package org.apache.beam.examples.scala.complete
 
 import scala.math.Ordered
-import scala.math.min
+import scala.math.{min, pow}
 import scala.util.matching.Regex
 
 import org.apache.beam.examples.scala.typealias._
 import org.apache.beam.sdk.coders.{AvroCoder, DefaultCoder}
-import org.apache.beam.sdk.transforms.DoFn
+import org.apache.beam.sdk.transforms.{DoFn, PTransform, ParDo, SerializableFunction}
+import org.apache.beam.sdk.transforms.Top
 import org.apache.beam.sdk.transforms.DoFn.ProcessElement
-import org.apache.beam.sdk.values.KV
+import org.apache.beam.sdk.values.{KV, PCollection}
 
 object AutoComplete {
+
+  /** Lower latency, but more expensive. */
+  class ComputeTopFlat(candidatesPerPrefix: JInteger, minPrefix: JInteger)
+      extends PTransform[
+        PCollection[CompletionCandidate],
+        PCollection[KV[String, JList[CompletionCandidate]]]] {
+
+    override def expand(input: PCollection[CompletionCandidate])
+        : PCollection[KV[String, JList[CompletionCandidate]]] =
+      input
+        // For each completion candidate, map it to all prefixes.
+        .apply(ParDo.of(new AllPrefixesFn(minPrefix)))
+          // Find and return the top candiates for each prefix.
+        .apply(
+          Top
+            .largestPerKey[String, CompletionCandidate](candidatesPerPrefix)
+            .withHotKeyFanout(new HotKeyFanout()))
+
+    class HotKeyFanout extends SerializableFunction[String, JInteger] {
+      override def apply(input: String): JInteger =
+        pow(4, (5 - input.length).toDouble).toInt
+    }
+  }
 
   /** A DoFn that keys each candidate by all its prefixes. */
   class AllPrefixesFn(minPrefix: JInteger, maxPrefix: JInteger = Integer.MAX_VALUE)
