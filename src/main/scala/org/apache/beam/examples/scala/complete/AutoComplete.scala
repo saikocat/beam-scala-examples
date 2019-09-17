@@ -119,9 +119,9 @@ object AutoComplete {
 
   /** Class used to store tag-count pairs. */
   @DefaultCoder(classOf[AvroCoder[CompletionCandidate]])
-  case class CompletionCandidate(count: JLong, value: String) extends Ordered[CompletionCandidate] {
+  case class CompletionCandidate(value: String, count: JLong) extends Ordered[CompletionCandidate] {
     // Empty constructor required for Avro decoding.
-    def this() = this(0L, "")
+    def this() = this("", 0L)
 
     def compare(that: CompletionCandidate) =
       Long2long(count).compare(Long2long(that.count)) match {
