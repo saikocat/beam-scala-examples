@@ -9,12 +9,55 @@ import org.apache.beam.examples.scala.typealias._
 import org.apache.beam.sdk.coders.{AvroCoder, DefaultCoder}
 import org.apache.beam.sdk.transforms.{DoFn, PTransform, ParDo, Partition}
 import org.apache.beam.sdk.transforms.{ProcessFunction, SerializableFunction}
-import org.apache.beam.sdk.transforms.{Filter, Flatten, Top}
+import org.apache.beam.sdk.transforms.{Count, Filter, Flatten, Top}
 import org.apache.beam.sdk.transforms.Partition.PartitionFn
 import org.apache.beam.sdk.transforms.DoFn.ProcessElement
 import org.apache.beam.sdk.values.{KV, PCollection, PCollectionList}
 
 object AutoComplete {
+
+  /**
+    * A PTransform that takes as input a list of tokens and returns the most common tokens per
+    * prefix.
+    */
+  class ComputeTopCompletions(candidatesPerPrefix: JInteger, recursive: JBoolean)
+      extends PTransform[PCollection[String], PCollection[KV[String, JList[CompletionCandidate]]]] {
+
+    override def expand(
+        input: PCollection[String]): PCollection[KV[String, JList[CompletionCandidate]]] = {
+      val candidates: PCollection[CompletionCandidate] = input
+        // First count how often each token appears.
+        .apply(Count.perElement())
+          // Map the KV outputs of Count into our own CompletionCandiate class.
+        .apply(
+          "CreateCompletionCandidates",
+          ParDo.of(ComputeTopCompletions.createCompletionCandidatesFn))
+
+      // Compute the top via either a flat or recursive algorithm.
+      if (recursive) {
+        candidates
+          .apply(new ComputeTopRecursive(candidatesPerPrefix, 1))
+          .apply(Flatten.pCollections())
+      } else {
+        candidates.apply(new ComputeTopFlat(candidatesPerPrefix, 1))
+      }
+    }
+  }
+
+  // companion object
+  object ComputeTopCompletions {
+    def top(candidatesPerPrefix: JInteger, recursive: JBoolean): ComputeTopCompletions =
+      new ComputeTopCompletions(candidatesPerPrefix, recursive)
+
+    def top(candidatesPerPrefix: Int, recursive: Boolean): ComputeTopCompletions =
+      top(Int.box(candidatesPerPrefix), Boolean.box(recursive))
+
+    val createCompletionCandidatesFn = new DoFn[KV[String, JLong], CompletionCandidate] {
+      @ProcessElement
+      def processElement(ctx: ProcessContext): Unit =
+        ctx.output(CompletionCandidate(ctx.element.getKey, ctx.element.getValue))
+    }
+  }
 
   /** Lower latency, but more expensive. */
   class ComputeTopFlat(candidatesPerPrefix: JInteger, minPrefix: JInteger)
