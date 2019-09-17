@@ -1,15 +1,20 @@
 package org.apache.beam.examples.scala.complete
 
 import scala.collection.JavaConverters._
+import scala.collection.mutable
 import scala.math.Ordered
 import scala.math.{min, pow}
 import scala.util.matching.Regex
 
+import com.google.datastore.v1.client.DatastoreHelper.{makeKey, makeValue}
+import com.google.datastore.v1.{Entity, Key, Value}
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Preconditions.checkArgument
-import org.apache.beam.examples.common.{ExampleOptions, ExampleUtils}
+import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.MoreObjects
+import org.apache.beam.examples.common.{ExampleBigQueryTableOptions, ExampleOptions, ExampleUtils}
 import org.apache.beam.examples.scala.typealias._
 import org.apache.beam.sdk.{Pipeline, PipelineResult}
 import org.apache.beam.sdk.io.TextIO
+import org.apache.beam.sdk.io.gcp.datastore.DatastoreIO
 import org.apache.beam.sdk.options._
 import org.apache.beam.sdk.coders.{AvroCoder, DefaultCoder}
 import org.apache.beam.sdk.testing.PAssert
@@ -60,6 +65,20 @@ object AutoComplete {
         .apply(Window.into(windowFn))
         .apply(ComputeTopCompletions.top(10, options.getRecursive))
 
+    // Datastore output
+    if (options.getOutputToDatastore) {
+      toWrite
+        .apply(
+          "FormatForDatastore",
+          ParDo.of(new FormatForDatastoreFn(options.getKind, options.getDatastoreAncestorKey)))
+        .apply(
+          DatastoreIO
+            .v1()
+            .write()
+            .withProjectId(MoreObjects.firstNonNull(options.getOutputProject, options.getProject)))
+    }
+
+    // Checksum output
     if (options.getOutputToChecksum) {
       val checksum: PCollection[JLong] = toWrite
         .apply(ParDo.of(new CalculateChecksumFn()))
@@ -75,7 +94,7 @@ object AutoComplete {
   }
 
   // CLI Opt
-  trait Options extends ExampleOptions with StreamingOptions {
+  trait Options extends ExampleOptions with StreamingOptions with ExampleBigQueryTableOptions {
     @Description("Input text file")
     @Validation.Required
     def getInputFile: String
@@ -94,6 +113,25 @@ object AutoComplete {
     @Description("Expected result of the checksum transform.")
     def getExpectedChecksum: JLong
     def setExpectedChecksum(value: JLong): Unit
+
+    @Description("Whether output to Cloud Datastore")
+    @Default.Boolean(false)
+    def getOutputToDatastore: JBoolean
+    def setOutputToDatastore(value: JBoolean): Unit
+
+    @Description("Cloud Datastore ancestor key")
+    @Default.String("root")
+    def getDatastoreAncestorKey: String
+    def setDatastoreAncestorKey(value: String): Unit
+
+    @Description("Cloud Datastore output project ID, defaults to project ID")
+    def getOutputProject: String
+    def setOutputProject(value: String): Unit
+
+    @Description("Cloud Datastore entity kind")
+    @Default.String("autocomplete-demo")
+    def getKind: String
+    def setKind(value: String): Unit
   }
 
   /**
@@ -272,6 +310,36 @@ object AutoComplete {
       val elm: KV[String, JList[CompletionCandidate]] = ctx.element
       val listHash: JLong = ctx.element.getValue.asScala.foldLeft(0L)(_ + _.hashCode.toLong)
       ctx.output(elm.getKey.hashCode.toLong + listHash)
+    }
+  }
+
+  /**
+    * Takes as input a the top candidates per prefix, and emits an entity suitable for writing to
+    * Cloud Datastore.
+    *
+    * Note: We use ancestor keys for strong consistency. See the Cloud Datastore documentation on
+    * https://cloud.google.com/datastore/docs/concepts/structuring_for_strong_consistency
+    * Structuring Data for Strong Consistency
+    */
+  class FormatForDatastoreFn(kind: String, ancestorKey: String)
+      extends DoFn[KV[String, JList[CompletionCandidate]], Entity] {
+    @ProcessElement
+    def processElement(ctx: ProcessContext): Unit = {
+      val entityBuilder: Entity.Builder = Entity.newBuilder()
+      val key: Key = makeKey(makeKey(kind, ancestorKey).build(), kind, ctx.element.getKey).build()
+
+      entityBuilder.setKey(key)
+      val candidates = mutable.ListBuffer.empty[Value]
+      val properties = mutable.Map.empty[String, Value]
+      for (tag <- ctx.element.getValue.asScala) {
+        val tagEntity: Entity.Builder = Entity.newBuilder()
+        properties.put("tag", makeValue(tag.value).build())
+        properties.put("count", makeValue(tag.count).build())
+        candidates.append(makeValue(tagEntity).build())
+      }
+      properties.put("candidates", makeValue(candidates.asJava).build())
+      entityBuilder.putAllProperties(properties.asJava)
+      ctx.output(entityBuilder.build())
     }
   }
 
