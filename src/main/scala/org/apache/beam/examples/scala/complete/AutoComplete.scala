@@ -5,16 +5,96 @@ import scala.math.Ordered
 import scala.math.{min, pow}
 import scala.util.matching.Regex
 
+import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Preconditions.checkArgument
+import org.apache.beam.examples.common.{ExampleOptions, ExampleUtils}
 import org.apache.beam.examples.scala.typealias._
+import org.apache.beam.sdk.{Pipeline, PipelineResult}
+import org.apache.beam.sdk.io.TextIO
+import org.apache.beam.sdk.options._
 import org.apache.beam.sdk.coders.{AvroCoder, DefaultCoder}
+import org.apache.beam.sdk.testing.PAssert
 import org.apache.beam.sdk.transforms.{DoFn, PTransform, ParDo, Partition}
 import org.apache.beam.sdk.transforms.{ProcessFunction, SerializableFunction}
-import org.apache.beam.sdk.transforms.{Count, Filter, Flatten, Top}
+import org.apache.beam.sdk.transforms.{Count, Filter, Flatten, Sum, Top}
 import org.apache.beam.sdk.transforms.Partition.PartitionFn
 import org.apache.beam.sdk.transforms.DoFn.ProcessElement
+import org.apache.beam.sdk.transforms.windowing.{GlobalWindows, SlidingWindows, Window, WindowFn}
 import org.apache.beam.sdk.values.{KV, PCollection, PCollectionList}
+import org.joda.time.Duration
 
 object AutoComplete {
+
+  @throws(classOf[Exception])
+  def main(args: Array[String]): Unit = {
+    val options = PipelineOptionsFactory
+      .fromArgs(args: _*)
+      .withValidation()
+      .as(classOf[Options])
+
+    runAutocompletePipeline(options)
+  }
+
+  @throws(classOf[java.io.IOException])
+  def runAutocompletePipeline(options: Options): Unit = {
+    val exampleUtils = new ExampleUtils(options)
+
+    // We support running the same pipeline in either
+    // batch or windowed streaming mode.
+    val windowFn: WindowFn[Object, _] =
+      if (options.isStreaming) {
+        // Checksum doesn't seems to work without setting WithoutDefaults(),
+        // even then the same checksum still failed PAssert even though they
+        // have same value
+        checkArgument(!options.isStreaming, "Checksum is not supported in streaming.", Nil)
+        SlidingWindows.of(Duration.standardMinutes(30)).every(Duration.standardSeconds(5))
+      } else {
+        new GlobalWindows()
+      }
+
+    // Create the pipeline.
+    val pipeline = Pipeline.create(options)
+    val toWrite: PCollection[KV[String, JList[CompletionCandidate]]] =
+      pipeline
+        .apply(TextIO.read().from(options.getInputFile))
+        .apply(ParDo.of(new ExtractHashtagsFn()))
+        .apply(Window.into(windowFn))
+        .apply(ComputeTopCompletions.top(10, options.getRecursive))
+
+    if (options.getOutputToChecksum) {
+      val checksum: PCollection[JLong] = toWrite
+        .apply(ParDo.of(new CalculateChecksumFn()))
+        .apply(Sum.longsGlobally())
+      PAssert.that(checksum).containsInAnyOrder(options.getExpectedChecksum)
+    }
+
+    // Run the pipeline.
+    val result: PipelineResult = pipeline.run()
+
+    // ExampleUtils will try to cancel the pipeline and the injector before the program exists.
+    exampleUtils.waitToFinish(result)
+  }
+
+  // CLI Opt
+  trait Options extends ExampleOptions with StreamingOptions {
+    @Description("Input text file")
+    @Validation.Required
+    def getInputFile: String
+    def setInputFile(value: String): Unit
+
+    @Description("Whether to use the recursive algorithm")
+    @Default.Boolean(true)
+    def getRecursive: JBoolean
+    def setRecursive(value: JBoolean): Unit
+
+    @Description("Whether to send output to checksum Transform.")
+    @Default.Boolean(true)
+    def getOutputToChecksum: JBoolean
+    def setOutputToChecksum(value: JBoolean): Unit
+
+    @Description("Expected result of the checksum transform.")
+    def getExpectedChecksum: JLong
+    def setExpectedChecksum(value: JLong): Unit
+  }
 
   /**
     * A PTransform that takes as input a list of tokens and returns the most common tokens per
@@ -46,11 +126,8 @@ object AutoComplete {
 
   // companion object
   object ComputeTopCompletions {
-    def top(candidatesPerPrefix: JInteger, recursive: JBoolean): ComputeTopCompletions =
-      new ComputeTopCompletions(candidatesPerPrefix, recursive)
-
     def top(candidatesPerPrefix: Int, recursive: Boolean): ComputeTopCompletions =
-      top(Int.box(candidatesPerPrefix), Boolean.box(recursive))
+      new ComputeTopCompletions(candidatesPerPrefix, recursive)
 
     val createCompletionCandidatesFn = new DoFn[KV[String, JLong], CompletionCandidate] {
       @ProcessElement
@@ -183,4 +260,15 @@ object AutoComplete {
         ctx.output(hashtag.substring(1))
       }
   }
+
+  /** Calculate the checksum of key and its candidate */
+  class CalculateChecksumFn extends DoFn[KV[String, JList[CompletionCandidate]], JLong]() {
+    @ProcessElement
+    def process(ctx: ProcessContext): Unit = {
+      val elm: KV[String, JList[CompletionCandidate]] = ctx.element
+      val listHash: JLong = ctx.element.getValue.asScala.foldLeft(0L)(_ + _.hashCode.toLong)
+      ctx.output(elm.getKey.hashCode.toLong + listHash)
+    }
+  }
+
 }
