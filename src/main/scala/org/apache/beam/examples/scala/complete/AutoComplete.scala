@@ -248,6 +248,10 @@ object AutoComplete {
         case 0 => value.compare(that.value)
         case c => c
       }
+
+    override def hashCode: Int = {
+      count.hashCode ^ value.hashCode
+    }
   }
 
   /** Takes as input a set of strings, and emits each #hashtag found therein. */
