@@ -34,7 +34,10 @@ object StreamingWordExtract {
     @ProcessElement
     def processElement(ctx: ProcessContext): Unit =
       ctx.output(new TableRow().set("string_field", ctx.element))
+  }
 
+  /** Companion object */
+  object StringToRowConverterFn {
     def getSchema(): TableSchema =
       new TableSchema()
         .setFields(List(new TableFieldSchema().setName("string_field").setType("STRING")).asJava)
