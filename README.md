@@ -9,6 +9,13 @@ using [Scio](https://github.com/spotify/scio) API.
 - [x] Debugging Word Count
 - [x] Windowed Word Count
 ## Complete
+- [x] AutoComplete
+- [ ] StreamingWordExtract
+- [ ] TfIdf
+- [ ] TopWikipediaSessions
+- [ ] TrafficMaxLaneFlow
+- [ ] TrafficRoutes
+## Complete/Game
 ## Cookbook
 - [x] BigQueryTornadoes
 - [x] CombinePerKeyExamples
