@@ -6,6 +6,12 @@ import scala.math.Ordered
 import scala.math.{min, pow}
 import scala.util.matching.Regex
 
+import com.google.api.services.bigquery.model.{
+  TableFieldSchema,
+  TableReference,
+  TableRow,
+  TableSchema
+}
 import com.google.datastore.v1.client.DatastoreHelper.{makeKey, makeValue}
 import com.google.datastore.v1.{Entity, Key, Value}
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Preconditions.checkArgument
@@ -14,6 +20,7 @@ import org.apache.beam.examples.common.{ExampleBigQueryTableOptions, ExampleOpti
 import org.apache.beam.examples.scala.typealias._
 import org.apache.beam.sdk.{Pipeline, PipelineResult}
 import org.apache.beam.sdk.io.TextIO
+import org.apache.beam.sdk.io.gcp.bigquery.BigQueryIO
 import org.apache.beam.sdk.io.gcp.datastore.DatastoreIO
 import org.apache.beam.sdk.options._
 import org.apache.beam.sdk.coders.{AvroCoder, DefaultCoder}
@@ -41,6 +48,7 @@ object AutoComplete {
 
   @throws(classOf[java.io.IOException])
   def runAutocompletePipeline(options: Options): Unit = {
+    options.setBigQuerySchema(FormatForBigqueryFn.getSchema)
     val exampleUtils = new ExampleUtils(options)
 
     // We support running the same pipeline in either
@@ -78,6 +86,29 @@ object AutoComplete {
             .withProjectId(MoreObjects.firstNonNull(options.getOutputProject, options.getProject)))
     }
 
+    if (options.getOutputToBigQuery) {
+      exampleUtils.setupBigQueryTable()
+      val tableRef: TableReference = new TableReference()
+        .setProjectId(options.getProject)
+        .setDatasetId(options.getBigQueryDataset)
+        .setTableId(options.getBigQueryTable)
+
+      val writeDisposition = options.isStreaming match {
+        case true => BigQueryIO.Write.WriteDisposition.WRITE_APPEND
+        case false => BigQueryIO.Write.WriteDisposition.WRITE_TRUNCATE
+      }
+
+      toWrite
+        .apply(ParDo.of(new FormatForBigqueryFn()))
+        .apply(
+          BigQueryIO
+            .writeTableRows()
+            .to(tableRef)
+            .withSchema(FormatForBigqueryFn.getSchema)
+            .withCreateDisposition(BigQueryIO.Write.CreateDisposition.CREATE_IF_NEEDED)
+            .withWriteDisposition(writeDisposition))
+    }
+
     // Checksum output
     if (options.getOutputToChecksum) {
       val checksum: PCollection[JLong] = toWrite
@@ -104,6 +135,11 @@ object AutoComplete {
     @Default.Boolean(true)
     def getRecursive: JBoolean
     def setRecursive(value: JBoolean): Unit
+
+    @Description("Whether output to BigQuery")
+    @Default.Boolean(true)
+    def getOutputToBigQuery: JBoolean
+    def setOutputToBigQuery(value: JBoolean): Unit
 
     @Description("Whether to send output to checksum Transform.")
     @Default.Boolean(true)
@@ -287,9 +323,8 @@ object AutoComplete {
         case c => c
       }
 
-    override def hashCode: Int = {
+    override def hashCode: Int =
       count.hashCode ^ value.hashCode
-    }
   }
 
   /** Takes as input a set of strings, and emits each #hashtag found therein. */
@@ -310,6 +345,39 @@ object AutoComplete {
       val elm: KV[String, JList[CompletionCandidate]] = ctx.element
       val listHash: JLong = ctx.element.getValue.asScala.foldLeft(0L)(_ + _.hashCode.toLong)
       ctx.output(elm.getKey.hashCode.toLong + listHash)
+    }
+  }
+
+  /** Output format for BigQuery **/
+  class FormatForBigqueryFn extends DoFn[KV[String, JList[CompletionCandidate]], TableRow] {
+    @ProcessElement
+    def processElement(ctx: ProcessContext): Unit = {
+      val completions: List[TableRow] = ctx.element.getValue.asScala
+        .map(cc => new TableRow().set("count", cc.count).set("tag", cc.value))
+        .toList
+      val row: TableRow = new TableRow()
+        .set("prefix", ctx.element.getKey)
+        .set("tags", completions.asJava)
+      ctx.output(row)
+    }
+  }
+
+  object FormatForBigqueryFn {
+
+    /** Defines the BigQuery schema used for the output. */
+    def getSchema: TableSchema = {
+      val tagFields = List[TableFieldSchema](
+        new TableFieldSchema().setName("count").setType("INTEGER"),
+        new TableFieldSchema().setName("tag").setType("STRING"))
+      val fields = List[TableFieldSchema](
+        new TableFieldSchema().setName("prefix").setType("STRING"),
+        new TableFieldSchema()
+          .setName("tags")
+          .setType("RECORD")
+          .setMode("REPEATED")
+          .setFields(tagFields.asJava)
+      )
+      new TableSchema().setFields(fields.asJava)
     }
   }
 
