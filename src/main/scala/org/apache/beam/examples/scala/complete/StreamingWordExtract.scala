@@ -17,4 +17,12 @@ object StreamingWordExtract {
     }
   }
 
+  /** A DoFn that uppercases a word. */
+  class UppercaseFn extends DoFn[String, String] {
+    @ProcessElement
+    def processElement(ctx: ProcessContext): Unit = {
+      ctx.output(ctx.element.toUpperCase)
+    }
+  }
+
 }
