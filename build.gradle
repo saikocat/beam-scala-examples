@@ -2,10 +2,12 @@ plugins {
     id 'scala'
     id 'com.github.johnrengelman.shadow' version "$shadowVersion"
     id 'com.diffplug.gradle.spotless' version "$spotlessVersion"
+    id "com.github.hierynomus.license" version "$licenseVersion"
 }
 
 apply from: 'codequality/lint.gradle'
 apply from: 'codequality/fmt.gradle'
+apply from: 'codequality/license.gradle'
 
 repositories {
    jcenter()

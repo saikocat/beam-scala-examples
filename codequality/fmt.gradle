@@ -1,0 +1,5 @@
+spotless {
+  scala {
+    scalafmt("$scalafmtVersion").configFile('codequality/scalafmt.conf')
+  }
+}
