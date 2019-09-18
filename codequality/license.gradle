@@ -1,0 +1,9 @@
+// gradle licenseFormat '-P--dryRun'
+license {
+    include "**/*.scala"
+    header file('codequality/LICENSE_HEADER')
+    mapping {
+        // Apache Beam seems to use this style
+        scala = 'SLASHSTAR_STYLE'
+    }
+}

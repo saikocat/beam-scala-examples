@@ -30,7 +30,7 @@ using [Scio](https://github.com/spotify/scio) API.
 # Build
 Clean up code formatting, treat warnings as errors and build the Assembly Jar
 ```
-$ gradle spotlessApply assemblyJar
+$ gradle licenseFormatMain spotlessApply assemblyJar
 ```
 
 # Run
