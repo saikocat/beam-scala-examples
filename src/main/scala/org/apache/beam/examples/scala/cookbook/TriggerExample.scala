@@ -17,10 +17,15 @@
  */
 package org.apache.beam.examples.scala.cookbook
 
+import java.util.concurrent.TimeUnit
+
 import scala.collection.JavaConverters._
+import scala.util.Random
 
 import com.google.api.services.bigquery.model.{TableFieldSchema, TableReference, TableSchema}
-import org.joda.time.Duration
+import org.apache.beam.sdk.transforms.DoFn
+import org.apache.beam.sdk.transforms.DoFn.ProcessElement
+import org.joda.time.{Duration, Instant}
 
 object TriggerExample {
   // Numeric value of fixed window duration, in minutes
@@ -33,6 +38,30 @@ object TriggerExample {
   final val FIVE_MINUTES: Duration = Duration.standardMinutes(5)
   // ONE_DAY is used to specify the amount of lateness allowed for the data elements.
   final val ONE_DAY: Duration = Duration.standardDays(1)
+
+  /** Add current time to each record. Also insert a delay at random to demo the triggers. */
+  class InsertDelaysFn extends DoFn[String, String] {
+    private final val THRESHOLD = 0.001
+    // MIN_DELAY and MAX_DELAY in minutes.
+    private final val MIN_DELAY = 1
+    private final val MAX_DELAY = 100
+
+    @ProcessElement
+    def processElement(ctx: ProcessContext): Unit = {
+      val random = new Random()
+      val now: Instant = Instant.now()
+      val timestamp: Instant = (random.nextDouble < THRESHOLD) match {
+        case false => now
+        case true => {
+          val range = MAX_DELAY - MIN_DELAY
+          val delayInMinutes = random.nextInt(range) + MIN_DELAY
+          val delayInMillis = TimeUnit.MINUTES.toMillis(delayInMinutes.toLong)
+          new Instant(now.getMillis - delayInMillis)
+        }
+      }
+      ctx.outputWithTimestamp(ctx.element, timestamp)
+    }
+  }
 
   /** Sets the table reference. */
   def getTableReference(project: String, dataset: String, table: String): TableReference =
