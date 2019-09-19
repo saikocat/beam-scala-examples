@@ -46,6 +46,12 @@ $ gradle licenseFormatMain spotlessApply assemblyJar
 
 # Run
 
+```
+./gradlew exec \
+    --PmainClass=org.apache.beam.examples.scala.WordCount \
+    --args='--output=/tmp/wc/wc'
+```
+
 ## Word Count
 
 ### Minimal Word Count

@@ -76,3 +76,11 @@ task assemblyJar(type: ShadowJar) {
 
 tasks.assemble.dependsOn dependencyJar
 tasks.assemble.dependsOn appJar
+
+ext.mainClass = project.properties['mainClass'] ?: ''
+
+task exec(type: JavaExec) {
+    // select main with `-PmainClass=path.to.MainClass`
+    main = mainClass
+    classpath = sourceSets.main.runtimeClasspath
+}
