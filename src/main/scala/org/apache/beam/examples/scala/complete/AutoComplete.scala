@@ -72,10 +72,11 @@ object AutoComplete {
     // batch or windowed streaming mode.
     val windowFn: WindowFn[Object, _] =
       if (options.isStreaming) {
+        checkArgument(!options.getOutputToDatastore, "DatastoreIO is not supported in streaming.", Nil)
         // Checksum doesn't seems to work without setting WithoutDefaults(),
         // even then the same checksum still failed PAssert even though they
         // have same value
-        checkArgument(!options.isStreaming, "Checksum is not supported in streaming.", Nil)
+        checkArgument(!options.getOutputToChecksum, "Checksum is not supported in streaming.", Nil)
         SlidingWindows.of(Duration.standardMinutes(30)).every(Duration.standardSeconds(5))
       } else {
         new GlobalWindows()
