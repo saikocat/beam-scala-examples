@@ -9,3 +9,5 @@ build/
 .metals/
 .project
 .settings/
+
+.vim/
