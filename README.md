@@ -41,15 +41,25 @@ using [Scio](https://github.com/spotify/scio) API.
 Clean up code formatting, treat warnings as errors and build the Assembly Jar
 
 ```
-$ gradle licenseFormatMain spotlessApply assemblyJar
+$ ./gradlew licenseFormatMain spotlessApply assemblyJar
 ```
 
 # Run
 
+## Mimic mvn run
+
 ```
-./gradlew exec \
-    --PmainClass=org.apache.beam.examples.scala.WordCount \
+$ ./gradlew exec \
+    -PmainClass=org.apache.beam.examples.scala.WordCount \
     --args='--output=/tmp/wc/wc'
+```
+
+## Run using jars
+
+```
+$ ./gradlew execJar \
+    -PmainClass=org.apache.beam.examples.scala.WordCount \
+    --args='--output=/tmp/wc/wc --inputFile=/tmp/tagdata.txt'
 ```
 
 ## Word Count
