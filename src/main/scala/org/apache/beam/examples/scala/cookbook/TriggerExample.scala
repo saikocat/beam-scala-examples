@@ -23,8 +23,10 @@ import scala.collection.JavaConverters._
 import scala.util.Random
 
 import com.google.api.services.bigquery.model.{TableFieldSchema, TableReference, TableSchema}
+import org.apache.beam.examples.scala.typealias._
 import org.apache.beam.sdk.transforms.DoFn
 import org.apache.beam.sdk.transforms.DoFn.ProcessElement
+import org.apache.beam.sdk.values.KV
 import org.joda.time.{Duration, Instant}
 
 object TriggerExample {
@@ -38,6 +40,31 @@ object TriggerExample {
   final val FIVE_MINUTES: Duration = Duration.standardMinutes(5)
   // ONE_DAY is used to specify the amount of lateness allowed for the data elements.
   final val ONE_DAY: Duration = Duration.standardDays(1)
+
+  /**
+    * Extract the freeway and total flow in a reading. Freeway is used as key since we are
+    * calculating the total flow for each freeway.
+    */
+  class ExtractFlowInfoFn extends DoFn[String, KV[String, JInteger]] {
+    private final val VALID_NUM_FIELDS = 50
+
+    @ProcessElement
+    def processElement(ctx: ProcessContext): Unit = {
+      val laneInfo = ctx.element.split(",", -1)
+
+      for {
+        totalFlow <- scala.util.Try(laneInfo(7).toInt)
+        freeway = laneInfo(2)
+        // Skip the invalid input.
+        if laneInfo.length >= VALID_NUM_FIELDS
+        // Header row
+        if laneInfo(0) != "timestamp"
+        // Ignore the records with total flow 0 to easily understand the working of triggers.
+        // Skip the records with total flow -1 since they are invalid input.
+        if totalFlow > 0
+      } ctx.output(KV.of(freeway, totalFlow))
+    }
+  }
 
   /** Add current time to each record. Also insert a delay at random to demo the triggers. */
   class InsertDelaysFn extends DoFn[String, String] {
