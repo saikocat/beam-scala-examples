@@ -22,11 +22,17 @@ import java.util.concurrent.TimeUnit
 import scala.collection.JavaConverters._
 import scala.util.Random
 
-import com.google.api.services.bigquery.model.{TableFieldSchema, TableReference, TableSchema}
+import com.google.api.services.bigquery.model.{
+  TableFieldSchema,
+  TableReference,
+  TableRow,
+  TableSchema
+}
 import org.apache.beam.examples.scala.typealias._
-import org.apache.beam.sdk.transforms.DoFn
+import org.apache.beam.sdk.transforms.{DoFn, GroupByKey, PTransform, ParDo}
 import org.apache.beam.sdk.transforms.DoFn.ProcessElement
-import org.apache.beam.sdk.values.KV
+import org.apache.beam.sdk.transforms.windowing.BoundedWindow
+import org.apache.beam.sdk.values.{KV, PCollection}
 import org.joda.time.{Duration, Instant}
 
 object TriggerExample {
@@ -40,6 +46,60 @@ object TriggerExample {
   final val FIVE_MINUTES: Duration = Duration.standardMinutes(5)
   // ONE_DAY is used to specify the amount of lateness allowed for the data elements.
   final val ONE_DAY: Duration = Duration.standardDays(1)
+
+  /**
+    * Calculate total flow and number of records for each freeway and format the results to TableRow
+    * objects, to save to BigQuery.
+    */
+  class TotalFlow(triggerType: String)
+      extends PTransform[PCollection[KV[String, JInteger]], PCollection[TableRow]] {
+    override def expand(flowInfo: PCollection[KV[String, JInteger]]): PCollection[TableRow] = {
+      val flowPerFreeway: PCollection[KV[String, JIterable[JInteger]]] =
+        flowInfo.apply(GroupByKey.create())
+      val results: PCollection[KV[String, String]] =
+        flowPerFreeway.apply(ParDo.of(new SumCountRecordFn()))
+      val output: PCollection[TableRow] =
+        results.apply(ParDo.of(new FormatTotalFlowFn(triggerType)))
+      output
+    }
+  }
+
+  // helper fn instead of anon fn to make linter happy
+  class SumCountRecordFn extends DoFn[KV[String, JIterable[Integer]], KV[String, String]] {
+    @ProcessElement
+    def processElement(ctx: ProcessContext): Unit = {
+      val flows: JIterable[Integer] = ctx.element.getValue
+      val (sum, numberOfRecords) = flows.asScala.foldLeft((0, 0L)) { (acc, value) =>
+        (acc._1 + value, acc._2 + 1)
+      }
+      ctx.output(KV.of(ctx.element.getKey, s"$sum, $numberOfRecords"))
+    }
+  }
+
+  /**
+    * Format the results of the Total flow calculation to a TableRow, to save to BigQuery. Adds the
+    * triggerType, pane information, processing time and the window timestamp.
+    */
+  class FormatTotalFlowFn(triggerType: String) extends DoFn[KV[String, String], TableRow] {
+    @ProcessElement
+    def processElement(ctx: ProcessContext, window: BoundedWindow): Unit = {
+      val values = ctx.element.getValue.split(",", -1)
+      // Exception fest if unable to parse int or long
+      val row: TableRow =
+        new TableRow()
+          .set("trigger_type", triggerType)
+          .set("freeway", ctx.element.getKey)
+          .set("total_flow", Integer.parseInt(values(0)))
+          .set("number_of_records", Long2long(values(1).toLong))
+          .set("window", window.toString)
+          .set("isFirst", ctx.pane.isFirst)
+          .set("isLast", ctx.pane.isLast)
+          .set("timing", ctx.pane.getTiming.toString)
+          .set("event_time", ctx.timestamp.toString)
+          .set("processing_time", Instant.now().toString)
+      ctx.output(row)
+    }
+  }
 
   /**
     * Extract the freeway and total flow in a reading. Freeway is used as key since we are
