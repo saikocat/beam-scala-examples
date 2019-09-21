@@ -30,7 +30,7 @@ using [Scio](https://github.com/spotify/scio) API.
 - [x] FilterExamples
 - [x] JoinExamples
 - [x] MaxPerKeyExamples
-- [ ] TriggerExample
+- [x] TriggerExample
 
 ## Snippets
 

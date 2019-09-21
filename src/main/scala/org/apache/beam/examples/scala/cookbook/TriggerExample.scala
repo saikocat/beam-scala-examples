@@ -28,7 +28,12 @@ import com.google.api.services.bigquery.model.{
   TableRow,
   TableSchema
 }
+import org.apache.beam.examples.common.{ExampleBigQueryTableOptions, ExampleOptions, ExampleUtils}
 import org.apache.beam.examples.scala.typealias._
+import org.apache.beam.sdk.{Pipeline, PipelineResult}
+import org.apache.beam.sdk.io.TextIO
+import org.apache.beam.sdk.io.gcp.bigquery.BigQueryIO
+import org.apache.beam.sdk.options._
 import org.apache.beam.sdk.transforms.{DoFn, GroupByKey, PTransform, ParDo}
 import org.apache.beam.sdk.transforms.DoFn.ProcessElement
 import org.apache.beam.sdk.transforms.windowing.{
@@ -54,6 +59,60 @@ object TriggerExample {
   final val FIVE_MINUTES: Duration = Duration.standardMinutes(5)
   // ONE_DAY is used to specify the amount of lateness allowed for the data elements.
   final val ONE_DAY: Duration = Duration.standardDays(1)
+
+  def main(args: Array[String]): Unit = {
+    val options = PipelineOptionsFactory
+      .fromArgs(args: _*)
+      .withValidation()
+      .as(classOf[TrafficFlowOptions])
+    options.setStreaming(true)
+    options.setBigQuerySchema(getSchema())
+
+    val exampleUtils = new ExampleUtils(options)
+    exampleUtils.setup()
+
+    val pipeline = Pipeline.create(options)
+    val tableRef: TableReference =
+      getTableReference(options.getProject, options.getBigQueryDataset, options.getBigQueryTable)
+
+    val resultList: PCollectionList[TableRow] =
+      pipeline
+        .apply("ReadMyFile", TextIO.read().from(options.getInput))
+        .apply("InsertRandomDelays", ParDo.of(new InsertDelaysFn()))
+        .apply(ParDo.of(new ExtractFlowInfoFn()))
+        .apply(new CalculateTotalFlow(options.getWindowDuration))
+
+    for (idx <- 0 until resultList.size()) {
+      resultList
+        .get(idx)
+        .apply(
+          BigQueryIO
+            .writeTableRows()
+            .to(tableRef)
+            .withSchema(getSchema()))
+    }
+
+    val result: PipelineResult = pipeline.run()
+
+    // ExampleUtils will try to cancel the pipeline and the injector before the program exits.
+    exampleUtils.waitToFinish(result)
+  }
+
+  trait TrafficFlowOptions
+      extends ExampleOptions
+      with ExampleBigQueryTableOptions
+      with StreamingOptions {
+    @Description("Input file to read from")
+    @Default.String(
+      "gs://apache-beam-samples/traffic_sensor/Freeways-5Minaa2010-01-01_to_2010-02-15.csv")
+    def getInput(): String
+    def setInput(value: String): Unit
+
+    @Description("Numeric value of window duration for fixed windows, in minutes")
+    @Default.Integer(WINDOW_DURATION)
+    def getWindowDuration: JInteger
+    def setWindowDuration(value: JInteger): Unit
+  }
 
   /**
     * This transform demonstrates using triggers to control when data is produced for each window
