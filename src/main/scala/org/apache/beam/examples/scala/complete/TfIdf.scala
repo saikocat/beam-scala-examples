@@ -26,8 +26,29 @@ import org.apache.beam.examples.scala.typealias._
 import org.apache.beam.sdk.Pipeline
 import org.apache.beam.sdk.coders.{KvCoder, StringDelegateCoder, StringUtf8Coder}
 import org.apache.beam.sdk.io.TextIO
-import org.apache.beam.sdk.values.{KV, PBegin, PCollection, PCollectionList}
-import org.apache.beam.sdk.transforms.{Flatten, PTransform, WithKeys}
+import org.apache.beam.sdk.transforms.{
+  Count,
+  Distinct,
+  DoFn,
+  Flatten,
+  Keys,
+  PTransform,
+  ParDo,
+  Values,
+  View,
+  WithKeys
+}
+import org.apache.beam.sdk.transforms.DoFn.ProcessElement
+import org.apache.beam.sdk.transforms.join.{CoGbkResult, CoGroupByKey, KeyedPCollectionTuple}
+import org.apache.beam.sdk.values.{
+  KV,
+  PBegin,
+  PCollection,
+  PCollectionList,
+  PCollectionView,
+  TupleTag
+}
+import org.slf4j.{Logger, LoggerFactory}
 
 /**
   * An example that computes a basic TF-IDF search table for a directory or GCS prefix.
@@ -68,5 +89,208 @@ object TfIdf {
       case "file" => new File(uri).getPath
       case _ => uri.toString
     }
+  }
+
+  /**
+    * A transform containing a basic TF-IDF pipeline. The input consists of KV objects where the key
+    * is the document's URI and the value is a piece of the document's content. The output is mapping
+    * from terms to scores for each document URI.
+    */
+  class ComputeTfIdf
+      extends PTransform[PCollection[KV[URI, String]], PCollection[KV[String, KV[URI, JDouble]]]] {
+    override def expand(
+        uriToContent: PCollection[KV[URI, String]]): PCollection[KV[String, KV[URI, JDouble]]] = {
+      // Compute the total number of documents, and
+      // prepare this singleton PCollectionView for
+      // use as a side input.
+      val totalDocuments: PCollectionView[JLong] =
+        uriToContent
+          .apply("GetURIs", Keys.create())
+          .apply("DistinctDocs", Distinct.create())
+          .apply(Count.globally())
+          .apply(View.asSingleton())
+
+      // Create a collection of pairs mapping a URI to each
+      // of the words in the document associated with that that URI.
+      val uriToWords: PCollection[KV[URI, String]] =
+        uriToContent.apply("SplitWords", ParDo.of(new UriToWordFn()))
+
+      // Compute a mapping from each word to the total
+      // number of documents in which it appears.
+      val wordToDocCount: PCollection[KV[String, JLong]] =
+        uriToWords
+          .apply("DistinctWords", Distinct.create())
+          .apply(Values.create())
+          .apply("CountDocs", Count.perElement())
+
+      // Compute a mapping from each URI to the total
+      // number of words in the document associated with that URI.
+      val uriToWordTotal: PCollection[KV[URI, JLong]] =
+        uriToWords
+          .apply("GetURIs2", Keys.create())
+          .apply("CountWords", Count.perElement())
+
+      // Count, for each (URI, word) pair, the number of
+      // occurrences of that word in the document associated
+      // with the URI.
+      val uriAndWordToCount: PCollection[KV[KV[URI, String], JLong]] =
+        uriToWords.apply("CountWordDocPairs", Count.perElement())
+
+      // Adjust the above collection to a mapping from
+      // (URI, word) pairs to counts into an isomorphic mapping
+      // from URI to (word, count) pairs, to prepare for a join
+      // by the URI key.
+      val uriToWordAndCount: PCollection[KV[URI, KV[String, JLong]]] =
+        uriAndWordToCount.apply("ShiftKeys", ParDo.of(new UriToWordAndCountFn()))
+
+      // Prepare to join the mapping of URI to (word, count) pairs with
+      // the mapping of URI to total word counts, by associating
+      // each of the input PCollection[KV[URI, ...]] with
+      // a tuple tag. Each input must have the same key type, URI
+      // in this case. The type parameter of the tuple tag matches
+      // the types of the values for each collection.
+      val wordTotalsTag: TupleTag[JLong] = new TupleTag()
+      val wordCountsTag: TupleTag[KV[String, JLong]] = new TupleTag()
+      val coGbkInput: KeyedPCollectionTuple[URI] =
+        KeyedPCollectionTuple
+          .of(wordTotalsTag, uriToWordTotal)
+          .and(wordCountsTag, uriToWordAndCount)
+
+      // Perform a CoGroupByKey (a sort of pre-join) on the prepared
+      // inputs. This yields a mapping from URI to a CoGbkResult
+      // (CoGroupByKey Result). The CoGbkResult is a mapping
+      // from the above tuple tags to the values in each input
+      // associated with a particular URI. In this case, each
+      // KV[URI, CoGbkResult] group a URI with the total number of
+      // words in that document as well as all the (word, count)
+      // pairs for particular words.
+      val uriToWordAndCountAndTotal: PCollection[KV[URI, CoGbkResult]] =
+        coGbkInput.apply("CoGroupByUri", CoGroupByKey.create())
+
+      // Compute a mapping from each word to a (URI, term frequency)
+      // pair for each URI. A word's term frequency for a document
+      // is simply the number of times that word occurs in the document
+      // divided by the total number of words in the document.
+      val wordToUriAndTf: PCollection[KV[String, KV[URI, JDouble]]] =
+        uriToWordAndCountAndTotal.apply(
+          "ComputeTermFrequencies",
+          ParDo.of(new ComputeTermFrequenciesPerUriFn(wordTotalsTag, wordCountsTag)))
+
+      // Compute a mapping from each word to its document frequency.
+      // A word's document frequency in a corpus is the number of
+      // documents in which the word appears divided by the total
+      // number of documents in the corpus. Note how the total number of
+      // documents is passed as a side input; the same value is
+      // presented to each invocation of the DoFn.
+      val wordToDf: PCollection[KV[String, JDouble]] =
+        wordToDocCount.apply(
+          "ComputeDocFrequencies",
+          ParDo
+            .of(new ComputeDocFrequenciesFn(totalDocuments))
+            .withSideInputs(totalDocuments))
+
+      // Join the term frequency and document frequency
+      // collections, each keyed on the word.
+      val tfTag: TupleTag[KV[URI, JDouble]] = new TupleTag()
+      val dfTag: TupleTag[JDouble] = new TupleTag()
+      val wordToUriAndTfAndDf: PCollection[KV[String, CoGbkResult]] =
+        KeyedPCollectionTuple
+          .of(tfTag, wordToUriAndTf)
+          .and(dfTag, wordToDf)
+          .apply(CoGroupByKey.create())
+
+      // Compute a mapping from each word to a (URI, TF-IDF) score
+      // for each URI. There are a variety of definitions of TF-IDF
+      // ("term frequency - inverse document frequency") score;
+      // here we use a basic version that is the term frequency
+      // divided by the log of the document frequency.
+      val wordToUriAndTfIdf: PCollection[KV[String, KV[URI, JDouble]]] =
+        wordToUriAndTfAndDf.apply("ComputeTfIdf", ParDo.of(new ComputeTfIdfFn(tfTag, dfTag)))
+
+      wordToUriAndTfIdf
+    }
+
+    // Split words and output uri & word pair
+    class UriToWordFn extends DoFn[KV[URI, String], KV[URI, String]] {
+      @ProcessElement
+      def processElement(ctx: ProcessContext): Unit = {
+        val uri: URI = ctx.element.getKey
+        val line: String = ctx.element.getValue
+        for (word <- line.split("\\W+", -1)) {
+          // Log INFO messages when the word "love" is found.
+          if ("love".equalsIgnoreCase(word)) {
+            LOG.info("Found {}", word.toLowerCase)
+          }
+
+          if (word.nonEmpty) {
+            ctx.output(KV.of(uri, word.toLowerCase))
+          }
+        }
+      }
+    }
+
+    // shift keys to get (uri, occurrences) pair
+    class UriToWordAndCountFn extends DoFn[KV[KV[URI, String], JLong], KV[URI, KV[String, JLong]]] {
+      @ProcessElement
+      def processElement(ctx: ProcessContext): Unit = {
+        val uri: URI = ctx.element.getKey.getKey
+        val word = ctx.element.getKey.getValue
+        val occurrences: JLong = ctx.element.getValue
+        ctx.output(KV.of(uri, KV.of(word, occurrences)))
+      }
+    }
+
+    // Compute Term Frequencies for each URI
+    class ComputeTermFrequenciesPerUriFn(
+        wordTotalsTag: TupleTag[JLong],
+        wordCountsTag: TupleTag[KV[String, JLong]])
+        extends DoFn[KV[URI, CoGbkResult], KV[String, KV[URI, JDouble]]] {
+      @ProcessElement
+      def processElement(ctx: ProcessContext): Unit = {
+        val uri: URI = ctx.element.getKey
+        val wordTotal: JLong = ctx.element.getValue.getOnly(wordTotalsTag)
+
+        for (wordAndCount <- ctx.element.getValue.getAll(wordCountsTag).asScala) {
+          val word = wordAndCount.getKey
+          val wordCount: JLong = wordAndCount.getValue
+          val termFrequency: JDouble = wordCount.doubleValue() / wordTotal.doubleValue()
+          ctx.output(KV.of(word, KV.of(uri, termFrequency)))
+        }
+      }
+    }
+
+    // Computer Document Frequencies for each word
+    class ComputeDocFrequenciesFn(totalDocuments: PCollectionView[JLong])
+        extends DoFn[KV[String, JLong], KV[String, JDouble]] {
+      @ProcessElement
+      def processElement(ctx: ProcessContext): Unit = {
+        val word = ctx.element.getKey
+        val documentCount: JLong = ctx.element.getValue
+        val documentTotal: JLong = ctx.sideInput(totalDocuments)
+        val documentFrequency: JDouble = documentCount.doubleValue() / documentTotal.doubleValue()
+        ctx.output(KV.of(word, documentFrequency))
+      }
+    }
+
+    class ComputeTfIdfFn(tfTag: TupleTag[KV[URI, JDouble]], dfTag: TupleTag[JDouble])
+        extends DoFn[KV[String, CoGbkResult], KV[String, KV[URI, JDouble]]] {
+      @ProcessElement
+      def processElement(ctx: ProcessContext): Unit = {
+        val word = ctx.element.getKey
+        val df: JDouble = ctx.element.getValue.getOnly(dfTag)
+
+        for (uriAndTf <- ctx.element.getValue.getAll(tfTag).asScala) {
+          val uri: URI = uriAndTf.getKey
+          val tf: JDouble = uriAndTf.getValue
+          val tfIdf: JDouble = tf * Math.log(1 / df)
+          ctx.output(KV.of(word, KV.of(uri, tfIdf)))
+        }
+      }
+    }
+
+    // Instantiate Logger.
+    // It is suggested that the user specify the class name of the containing class
+    // (in this case ComputeTfIdf).
+    val LOG: Logger = LoggerFactory.getLogger(getClass.getName)
   }
 }
