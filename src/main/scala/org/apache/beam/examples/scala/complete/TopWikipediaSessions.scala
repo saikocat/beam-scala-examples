@@ -106,4 +106,21 @@ object TopWikipediaSessions {
             .withoutDefaults())
     }
   }
+
+  class SessionsToStringsDoFn extends DoFn[KV[String, JLong], KV[String, JLong]] {
+    @ProcessElement
+    def processElement(ctx: ProcessContext, window: BoundedWindow): Unit =
+      ctx.output(KV.of(s"${ctx.element.getKey} : $window", ctx.element.getValue))
+  }
+
+  class FormatOutputDoFn extends DoFn[JList[KV[String, JLong]], String] {
+    @ProcessElement
+    def processElement(ctx: ProcessContext, window: BoundedWindow): Unit =
+      for (item <- ctx.element.asScala) {
+        val session = item.getKey
+        val count = item.getValue
+        val instantTs = window.asInstanceOf[IntervalWindow].start()
+        ctx.output(s"$session : $count : $instantTs")
+      }
+  }
 }
