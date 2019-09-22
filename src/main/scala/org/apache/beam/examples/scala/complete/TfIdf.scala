@@ -17,14 +17,17 @@
  */
 package org.apache.beam.examples.scala.complete
 
-import java.net.URI
-import java.io.File
+import java.net.{URI, URISyntaxException}
+import java.io.{File, IOException}
 
 import scala.collection.JavaConverters._
 
 import org.apache.beam.examples.scala.typealias._
 import org.apache.beam.sdk.Pipeline
 import org.apache.beam.sdk.coders.{KvCoder, StringDelegateCoder, StringUtf8Coder}
+import org.apache.beam.sdk.extensions.gcp.options.GcsOptions
+import org.apache.beam.sdk.extensions.gcp.util.GcsUtil
+import org.apache.beam.sdk.extensions.gcp.util.gcsfs.GcsPath
 import org.apache.beam.sdk.io.TextIO
 import org.apache.beam.sdk.options._
 import org.apache.beam.sdk.transforms.{
@@ -69,6 +72,49 @@ object TfIdf {
     @Validation.Required
     def getOutput: String
     def setOutput(value: String): Unit
+  }
+
+  /** Lists documents contained beneath the options.input prefix/directory. */
+  @throws(classOf[URISyntaxException])
+  @throws(classOf[IOException])
+  def listInputDocuments(options: Options): JSet[URI] = {
+    val baseUri: URI = new URI(options.getInput)
+
+    // List all documents in the directory or GCS prefix.
+    val absoluteUri: URI = Option(baseUri.getScheme) match {
+      case Some(_) => baseUri
+      case None =>
+        new URI(
+          "file",
+          baseUri.getAuthority,
+          baseUri.getPath,
+          baseUri.getQuery,
+          baseUri.getFragment)
+    }
+
+    val uris: JSet[URI] = absoluteUri.getScheme match {
+      case "file" => {
+        val directory = new File(absoluteUri)
+        Option(directory.list())
+          .getOrElse(Array.empty[String])
+          .map(entry => new File(directory, entry).toURI())
+      }
+      case "gs" => {
+        val gcsUriGlob: URI = new URI(
+          absoluteUri.getScheme,
+          absoluteUri.getAuthority,
+          absoluteUri.getPath + "*",
+          absoluteUri.getQuery,
+          absoluteUri.getFragment)
+        val gcsUtil: GcsUtil = options.as(classOf[GcsOptions]).getGcsUtil()
+        gcsUtil
+          .expand(GcsPath.fromUri(gcsUriGlob))
+          .asScala
+          .map(_.toUri())
+      }
+    }
+
+    uris
   }
 
   /**
