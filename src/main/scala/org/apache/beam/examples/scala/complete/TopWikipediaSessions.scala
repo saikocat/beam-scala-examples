@@ -20,10 +20,12 @@ package org.apache.beam.examples.scala.complete
 import com.google.api.services.bigquery.model.TableRow
 import org.apache.beam.examples.scala.typealias._
 import org.apache.beam.sdk.extensions.gcp.util.Transport
-import org.apache.beam.sdk.transforms.DoFn
+import org.apache.beam.sdk.transforms.{Count , DoFn , SimpleFunction , PTransform}
 import org.apache.beam.sdk.transforms.DoFn.ProcessElement
-import org.apache.beam.sdk.transforms.SimpleFunction
-import org.joda.time.Instant
+import org.apache.beam.sdk.transforms.windowing.Window
+import org.apache.beam.sdk.transforms.windowing.Sessions
+import org.apache.beam.sdk.values.{KV, PCollection}
+import org.joda.time.{Duration, Instant}
 
 /**
   * An example that reads Wikipedia edit data from Cloud Storage and computes the user with the
@@ -60,6 +62,19 @@ object TopWikipediaSessions {
         // Sets the implicit timestamp field to be used in windowing.
         ctx.outputWithTimestamp(userName, new Instant(timestamp * 1000L))
       }
+    }
+  }
+
+  /**
+   * Computes the number of edits in each user session. A session is defined as a string of edits
+   * where each is separated from the next by less than an hour.
+   */
+  class ComputeSessions
+      extends PTransform[PCollection[String], PCollection[KV[String, JLong]]] {
+    override def expand(actions: PCollection[String]): PCollection[KV[String, JLong]] = {
+      actions
+        .apply(Window.into(Sessions.withGapDuration(Duration.standardHours(1))))
+        .apply(Count.perElement())
     }
   }
 }
