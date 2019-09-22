@@ -26,6 +26,7 @@ import org.apache.beam.examples.scala.typealias._
 import org.apache.beam.sdk.Pipeline
 import org.apache.beam.sdk.coders.{KvCoder, StringDelegateCoder, StringUtf8Coder}
 import org.apache.beam.sdk.io.TextIO
+import org.apache.beam.sdk.options._
 import org.apache.beam.sdk.transforms.{
   Count,
   Distinct,
@@ -57,6 +58,18 @@ import org.slf4j.{Logger, LoggerFactory}
   * Concepts: joining data; side inputs; logging
   */
 object TfIdf {
+
+  trait Options extends PipelineOptions {
+    @Description("Path to the directory or GCS prefix containing files to read from")
+    @Default.String("gs://apache-beam-samples/shakespeare/")
+    def getInput: String
+    def setInput(value: String): Unit
+
+    @Description("Prefix of output URI to write to")
+    @Validation.Required
+    def getOutput: String
+    def setOutput(value: String): Unit
+  }
 
   /**
     * Reads the documents at the provided uris and returns all lines from the documents tagged with
