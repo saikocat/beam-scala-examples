@@ -46,6 +46,7 @@ import org.apache.beam.sdk.values.{
   PCollection,
   PCollectionList,
   PCollectionView,
+  PDone,
   TupleTag
 }
 import org.slf4j.{Logger, LoggerFactory}
@@ -292,5 +293,25 @@ object TfIdf {
     // It is suggested that the user specify the class name of the containing class
     // (in this case ComputeTfIdf).
     val LOG: Logger = LoggerFactory.getLogger(getClass.getName)
+  }
+
+  /** A PTransform to write, in CSV format, a mapping from term and URI to score. */
+  class WriteTfIdf(output: String)
+      extends PTransform[PCollection[KV[String, KV[URI, JDouble]]], PDone] {
+    override def expand(wordToUriAndTfIdf: PCollection[KV[String, KV[URI, JDouble]]]): PDone =
+      wordToUriAndTfIdf
+        .apply("Format", ParDo.of(new FormatTfIdfFn()))
+        .apply(TextIO.write().to(output).withSuffix(".csv"))
+  }
+
+  class FormatTfIdfFn extends DoFn[KV[String, KV[URI, JDouble]], String] {
+    @ProcessElement
+    def processElement(ctx: ProcessContext): Unit =
+      ctx.output(
+        String.format(
+          "%s,\t%s,\t%f",
+          ctx.element.getKey,
+          ctx.element.getValue.getKey,
+          ctx.element.getValue.getValue))
   }
 }
