@@ -62,6 +62,31 @@ import org.slf4j.{Logger, LoggerFactory}
   */
 object TfIdf {
 
+  def main(args: Array[String]): Unit = {
+    val options = PipelineOptionsFactory
+      .fromArgs(args: _*)
+      .withValidation()
+      .as(classOf[Options])
+
+    runTfIdf(options)
+  }
+
+  @throws(classOf[Exception])
+  def runTfIdf(options: Options): Unit = {
+    val pipeline = Pipeline.create(options)
+    pipeline
+      .getCoderRegistry()
+      .registerCoderForClass(classOf[URI], StringDelegateCoder.of(classOf[URI]))
+
+    pipeline
+      .apply(new ReadDocuments(listInputDocuments(options)))
+      .apply(new ComputeTfIdf())
+      .apply(new WriteTfIdf(options.getOutput))
+
+    pipeline.run().waitUntilFinish()
+    ()
+  }
+
   trait Options extends PipelineOptions {
     @Description("Path to the directory or GCS prefix containing files to read from")
     @Default.String("gs://apache-beam-samples/shakespeare/")
