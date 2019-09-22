@@ -92,11 +92,12 @@ object TfIdf {
           baseUri.getFragment)
     }
 
-    val uris: JSet[URI] = absoluteUri.getScheme match {
+    val uris: Set[URI] = absoluteUri.getScheme match {
       case "file" => {
         val directory = new File(absoluteUri)
         Option(directory.list())
           .getOrElse(Array.empty[String])
+          .toSet[String]
           .map(entry => new File(directory, entry).toURI())
       }
       case "gs" => {
@@ -110,11 +111,12 @@ object TfIdf {
         gcsUtil
           .expand(GcsPath.fromUri(gcsUriGlob))
           .asScala
+          .toSet[GcsPath]
           .map(_.toUri())
       }
     }
 
-    uris
+    uris.asJava
   }
 
   /**
