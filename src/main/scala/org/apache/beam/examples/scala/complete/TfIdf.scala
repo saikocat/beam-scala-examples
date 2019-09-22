@@ -166,7 +166,9 @@ object TfIdf {
           acc.and(oneUriToLines)
         })
 
-      urisToLines.apply(Flatten.pCollections())
+      urisToLines
+        .apply(Flatten.pCollections())
+        .setCoder(KvCoder.of(StringDelegateCoder.of(classOf[URI]), StringUtf8Coder.of()))
     }
 
     // TextIO.Read supports:
