@@ -17,14 +17,22 @@
  */
 package org.apache.beam.examples.scala.complete
 
+import scala.collection.JavaConverters._
+
 import com.google.api.services.bigquery.model.TableRow
 import org.apache.beam.examples.scala.typealias._
 import org.apache.beam.sdk.extensions.gcp.util.Transport
 import org.apache.beam.sdk.transforms.{Count , DoFn , SimpleFunction , PTransform}
 import org.apache.beam.sdk.transforms.DoFn.ProcessElement
-import org.apache.beam.sdk.transforms.windowing.Window
-import org.apache.beam.sdk.transforms.windowing.Sessions
+import org.apache.beam.sdk.transforms.windowing.{
+  BoundedWindow,
+  CalendarWindows,
+  IntervalWindow,
+  Sessions,
+  Window
+}
 import org.apache.beam.sdk.values.{KV, PCollection}
+import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.ComparisonChain
 import org.joda.time.{Duration, Instant}
 
 /**
@@ -66,15 +74,36 @@ object TopWikipediaSessions {
   }
 
   /**
-   * Computes the number of edits in each user session. A session is defined as a string of edits
-   * where each is separated from the next by less than an hour.
-   */
-  class ComputeSessions
-      extends PTransform[PCollection[String], PCollection[KV[String, JLong]]] {
-    override def expand(actions: PCollection[String]): PCollection[KV[String, JLong]] = {
+    * Computes the number of edits in each user session. A session is defined as a string of edits
+    * where each is separated from the next by less than an hour.
+    */
+  class ComputeSessions extends PTransform[PCollection[String], PCollection[KV[String, JLong]]] {
+    override def expand(actions: PCollection[String]): PCollection[KV[String, JLong]] =
       actions
         .apply(Window.into(Sessions.withGapDuration(Duration.standardHours(1))))
         .apply(Count.perElement())
+  }
+
+  /** Computes the longest session ending in each month. */
+  class TopPerMonth
+      extends PTransform[PCollection[KV[String, JLong]], PCollection[JList[KV[String, JLong]]]] {
+    override def expand(
+        sessions: PCollection[KV[String, JLong]]): PCollection[JList[KV[String, JLong]]] = {
+      val comparator = new SerializableComparator[KV[String, JLong]] {
+        override def compare(thiz: KV[String, JLong], that: KV[String, JLong]): Int =
+          ComparisonChain
+            .start()
+            .compare(thiz.getValue, that.getValue)
+            .compare(thiz.getKey, that.getKey)
+            .result()
+      }
+
+      sessions
+        .apply(Window.into(CalendarWindows.months(1)))
+        .apply(
+          Top
+            .of[KV[String, JLong], SerializableComparator[KV[String, JLong]]](1, comparator)
+            .withoutDefaults())
     }
   }
 }
