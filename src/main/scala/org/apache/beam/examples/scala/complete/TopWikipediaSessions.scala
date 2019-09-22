@@ -18,8 +18,12 @@
 package org.apache.beam.examples.scala.complete
 
 import com.google.api.services.bigquery.model.TableRow
+import org.apache.beam.examples.scala.typealias._
 import org.apache.beam.sdk.extensions.gcp.util.Transport
+import org.apache.beam.sdk.transforms.DoFn
+import org.apache.beam.sdk.transforms.DoFn.ProcessElement
 import org.apache.beam.sdk.transforms.SimpleFunction
+import org.joda.time.Instant
 
 /**
   * An example that reads Wikipedia edit data from Cloud Storage and computes the user with the
@@ -40,5 +44,22 @@ object TopWikipediaSessions {
         case e: java.io.IOException =>
           throw new RuntimeException("Failed parsing table row json", e)
       }
+  }
+
+  /** Extracts user and timestamp from a TableRow representing a Wikipedia edit. */
+  class ExtractUserAndTimestamp extends DoFn[TableRow, String] {
+    @ProcessElement
+    def processElement(ctx: ProcessContext): Unit = {
+      val row: TableRow = ctx.element
+      val timestamp: Int = row.get("timestamp") match {
+        case t: java.math.BigDecimal => t.intValue()
+        case t: JInteger => t.intValue()
+      }
+      val userName = row.get("contributor_username").asInstanceOf[String]
+      if (Option(userName).nonEmpty) {
+        // Sets the implicit timestamp field to be used in windowing.
+        ctx.outputWithTimestamp(userName, new Instant(timestamp * 1000L))
+      }
+    }
   }
 }
