@@ -17,6 +17,10 @@
  */
 package org.apache.beam.examples.scala.complete
 
+import com.google.api.services.bigquery.model.TableRow
+import org.apache.beam.sdk.extensions.gcp.util.Transport
+import org.apache.beam.sdk.transforms.SimpleFunction
+
 /**
   * An example that reads Wikipedia edit data from Cloud Storage and computes the user with the
   * longest string of edits separated by no more than an hour within each month.
@@ -25,4 +29,16 @@ package org.apache.beam.examples.scala.complete
   */
 object TopWikipediaSessions {
   private final val EXPORTED_WIKI_TABLE = "gs://apache-beam-samples/wikipedia_edits/*.json"
+
+  class ParseTableRowJson extends SimpleFunction[String, TableRow] {
+    override def apply(input: String): TableRow =
+      // whew... do hope they have an example that handles failure with tags
+      // instead of a rude runtime exception
+      try {
+        Transport.getJsonFactory.fromString(input, classOf[TableRow])
+      } catch {
+        case e: java.io.IOException =>
+          throw new RuntimeException("Failed parsing table row json", e)
+      }
+  }
 }
