@@ -22,7 +22,15 @@ import scala.collection.JavaConverters._
 import com.google.api.services.bigquery.model.TableRow
 import org.apache.beam.examples.scala.typealias._
 import org.apache.beam.sdk.extensions.gcp.util.Transport
-import org.apache.beam.sdk.transforms.{Count , DoFn , SimpleFunction , PTransform}
+import org.apache.beam.sdk.transforms.{
+  Count,
+  DoFn,
+  PTransform,
+  ParDo,
+  SerializableComparator,
+  SimpleFunction,
+  Top
+}
 import org.apache.beam.sdk.transforms.DoFn.ProcessElement
 import org.apache.beam.sdk.transforms.windowing.{
   BoundedWindow,
@@ -121,6 +129,27 @@ object TopWikipediaSessions {
         val count = item.getValue
         val instantTs = window.asInstanceOf[IntervalWindow].start()
         ctx.output(s"$session : $count : $instantTs")
+      }
+  }
+
+  class ComputeTopSessions(samplingThreshold: Double)
+      extends PTransform[PCollection[TableRow], PCollection[String]] {
+    override def expand(input: PCollection[TableRow]): PCollection[String] =
+      input
+        .apply(ParDo.of(new ExtractUserAndTimestamp()))
+        .apply("SampleUsers", ParDo.of(new SampleUsersFn(samplingThreshold)))
+        .apply(new ComputeSessions())
+        .apply("SessionsToStrings", ParDo.of(new SessionsToStringsDoFn()))
+        .apply(new TopPerMonth())
+        .apply("FormatOutput", ParDo.of(new FormatOutputDoFn()))
+  }
+
+  class SampleUsersFn(samplingThreshold: Double) extends DoFn[String, String] {
+    @ProcessElement
+    def processElement(ctx: ProcessContext): Unit =
+      if (Math.abs(ctx.element.hashCode.toLong)
+          <= Integer.MAX_VALUE * samplingThreshold) {
+        ctx.output(ctx.element)
       }
   }
 }
