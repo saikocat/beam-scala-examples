@@ -21,10 +21,14 @@ import scala.collection.JavaConverters._
 
 import com.google.api.services.bigquery.model.TableRow
 import org.apache.beam.examples.scala.typealias._
+import org.apache.beam.sdk.Pipeline
 import org.apache.beam.sdk.extensions.gcp.util.Transport
+import org.apache.beam.sdk.io.TextIO
+import org.apache.beam.sdk.options._
 import org.apache.beam.sdk.transforms.{
   Count,
   DoFn,
+  MapElements,
   PTransform,
   ParDo,
   SerializableComparator,
@@ -51,6 +55,46 @@ import org.joda.time.{Duration, Instant}
   */
 object TopWikipediaSessions {
   private final val EXPORTED_WIKI_TABLE = "gs://apache-beam-samples/wikipedia_edits/*.json"
+  private final val SAMPLING_THRESHOLD = 0.1
+
+  def main(args: Array[String]): Unit = {
+    val options = PipelineOptionsFactory
+      .fromArgs(args: _*)
+      .withValidation()
+      .as(classOf[Options])
+
+    run(options)
+  }
+
+  def run(options: Options): Unit = {
+    val pipeline = Pipeline.create(options)
+
+    pipeline
+      .apply(TextIO.read().from(options.getWikiInput))
+      .apply(MapElements.via(new ParseTableRowJson()))
+      .apply(new ComputeTopSessions(options.getSamplingThreshold))
+      .apply("Write", TextIO.write().to(options.getOutput))
+
+    pipeline.run().waitUntilFinish()
+    ()
+  }
+
+  trait Options extends PipelineOptions {
+    @Description("Input specified as a GCS path containing a BigQuery table exported as json")
+    @Default.String(EXPORTED_WIKI_TABLE)
+    def getWikiInput: String
+    def setWikiInput(value: String): Unit
+
+    @Description("Sampling threshold for number of users")
+    @Default.Double(SAMPLING_THRESHOLD)
+    def getSamplingThreshold: JDouble
+    def setSamplingThreshold(value: JDouble): Unit
+
+    @Description("File to output results to")
+    @Validation.Required
+    def getOutput: String
+    def setOutput(value: String): Unit
+  }
 
   class ParseTableRowJson extends SimpleFunction[String, TableRow] {
     override def apply(input: String): TableRow =

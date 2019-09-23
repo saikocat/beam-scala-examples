@@ -17,7 +17,7 @@ using [Scio](https://github.com/spotify/scio) API.
 - [x] AutoComplete
 - [x] StreamingWordExtract
 - [x] TfIdf
-- [ ] TopWikipediaSessions
+- [x] TopWikipediaSessions
 - [ ] TrafficMaxLaneFlow
 - [ ] TrafficRoutes
 ## Complete/Game
