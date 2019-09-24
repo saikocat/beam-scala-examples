@@ -3,6 +3,7 @@ package org.apache.beam.examples.scala.complete
 import scala.collection.JavaConverters._
 import scala.util.Try
 
+import com.google.api.services.bigquery.model.{TableFieldSchema, TableRow, TableSchema}
 import org.apache.beam.examples.scala.typealias._
 import org.apache.beam.sdk.coders.{AvroCoder, DefaultCoder}
 import org.apache.beam.sdk.transforms.{DoFn, SerializableFunction}
@@ -147,5 +148,50 @@ object TrafficMaxLaneFlow {
   class MaxFlow extends SerializableFunction[JIterable[LaneInfo], LaneInfo] {
     override def apply(input: JIterable[LaneInfo]): LaneInfo =
       input.asScala.reduce((thiz, that) => if (that.laneFlow >= thiz.laneFlow) that else thiz)
+  }
+
+  /**
+    * Format the results of the Max Lane flow calculation to a TableRow, to save to BigQuery. Add the
+    * timestamp from the window context.
+    */
+  class FormatMaxesFn extends DoFn[KV[String, LaneInfo], TableRow] {
+    @ProcessElement
+    def processElement(ctx: ProcessContext): Unit = {
+      val laneInfo: LaneInfo = ctx.element.getValue
+      val row: TableRow =
+        new TableRow()
+          .set("station_id", ctx.element.getKey)
+          .set("direction", laneInfo.direction)
+          .set("freeway", laneInfo.freeway)
+          .set("lane_max_flow", laneInfo.laneFlow)
+          .set("lane", laneInfo.lane)
+          .set("avg_occ", laneInfo.laneAO)
+          .set("avg_speed", laneInfo.laneAS)
+          .set("total_flow", laneInfo.totalFlow)
+          .set("recorded_timestamp", laneInfo.recordedTimestamp)
+          .set("window_timestamp", ctx.timestamp.toString)
+      ctx.output(row)
+    }
+  }
+
+  object FormatMaxesFn {
+
+    /** Defines the BigQuery schema used for the output. */
+    def getSchema(): TableSchema = {
+      val fields: List[TableFieldSchema] = List(
+        new TableFieldSchema().setName("station_id").setType("STRING"),
+        new TableFieldSchema().setName("direction").setType("STRING"),
+        new TableFieldSchema().setName("freeway").setType("STRING"),
+        new TableFieldSchema().setName("lane_max_flow").setType("INTEGER"),
+        new TableFieldSchema().setName("lane").setType("STRING"),
+        new TableFieldSchema().setName("avg_occ").setType("FLOAT"),
+        new TableFieldSchema().setName("avg_speed").setType("FLOAT"),
+        new TableFieldSchema().setName("total_flow").setType("INTEGER"),
+        new TableFieldSchema().setName("window_timestamp").setType("TIMESTAMP"),
+        new TableFieldSchema().setName("recorded_timestamp").setType("STRING")
+      )
+      val schema: TableSchema = new TableSchema().setFields(fields.asJava)
+      schema
+    }
   }
 }
