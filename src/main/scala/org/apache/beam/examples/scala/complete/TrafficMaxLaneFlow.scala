@@ -1,7 +1,13 @@
 package org.apache.beam.examples.scala.complete
 
+import scala.util.Try
+
 import org.apache.beam.examples.scala.typealias._
 import org.apache.beam.sdk.coders.{AvroCoder, DefaultCoder}
+import org.apache.beam.sdk.transforms.DoFn
+import org.apache.beam.sdk.transforms.DoFn.ProcessElement
+import org.joda.time.Instant
+import org.joda.time.format.{DateTimeFormat, DateTimeFormatter}
 
 /**
   * A Beam Example that runs in both batch and streaming modes with traffic sensor data. You can
@@ -45,6 +51,24 @@ object TrafficMaxLaneFlow {
       laneAS: JDouble) {
     def this() {
       this("", "", "", "", "", -1, -1, -1.0, -1.0)
+    }
+  }
+
+  /** Extract the timestamp field from the input string, and use it as the element timestamp. */
+  class ExtractTimestamps extends DoFn[String, String] {
+    private final val dateTimeFormat: DateTimeFormatter =
+      DateTimeFormat.forPattern("MM/dd/yyyy HH:mm:ss")
+
+    @ProcessElement
+    def processElement(ctx: ProcessContext): Unit = {
+      val items = ctx.element.split(",", -1)
+
+      for {
+        timestamp <- Option(items(0))
+        timestampMs <- Try(dateTimeFormat.parseMillis(timestamp))
+        parsedTimestamp = new Instant(timestampMs)
+        if items.length > 0
+      } ctx.outputWithTimestamp(ctx.element, parsedTimestamp)
     }
   }
 }
