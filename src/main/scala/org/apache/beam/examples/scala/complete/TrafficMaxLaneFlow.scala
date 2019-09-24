@@ -6,9 +6,9 @@ import scala.util.Try
 import com.google.api.services.bigquery.model.{TableFieldSchema, TableRow, TableSchema}
 import org.apache.beam.examples.scala.typealias._
 import org.apache.beam.sdk.coders.{AvroCoder, DefaultCoder}
-import org.apache.beam.sdk.transforms.{DoFn, SerializableFunction}
+import org.apache.beam.sdk.transforms.{Combine, DoFn, PTransform, ParDo, SerializableFunction}
 import org.apache.beam.sdk.transforms.DoFn.ProcessElement
-import org.apache.beam.sdk.values.KV
+import org.apache.beam.sdk.values.{KV, PCollection}
 import org.joda.time.Instant
 import org.joda.time.format.{DateTimeFormat, DateTimeFormatter}
 
@@ -192,6 +192,21 @@ object TrafficMaxLaneFlow {
       )
       val schema: TableSchema = new TableSchema().setFields(fields.asJava)
       schema
+    }
+  }
+
+  /**
+    * This PTransform extracts lane info, calculates the max lane flow found for a given station (for
+    * the current Window) using a custom 'combiner', and formats the results for BigQuery.
+    */
+  class MaxLaneFlow extends PTransform[PCollection[KV[String, LaneInfo]], PCollection[TableRow]] {
+    override def expand(flowInfo: PCollection[KV[String, LaneInfo]]): PCollection[TableRow] = {
+      // stationId, LaneInfo => stationId + max lane flow info
+      val flowMaxes: PCollection[KV[String, LaneInfo]] =
+        flowInfo.apply(Combine.perKey(new MaxFlow()))
+      // <stationId, max lane flow info>... => row...
+      val results: PCollection[TableRow] = flowMaxes.apply(ParDo.of(new FormatMaxesFn()))
+      results
     }
   }
 }
