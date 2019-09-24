@@ -1,10 +1,11 @@
 package org.apache.beam.examples.scala.complete
 
+import scala.collection.JavaConverters._
 import scala.util.Try
 
 import org.apache.beam.examples.scala.typealias._
 import org.apache.beam.sdk.coders.{AvroCoder, DefaultCoder}
-import org.apache.beam.sdk.transforms.DoFn
+import org.apache.beam.sdk.transforms.{DoFn, SerializableFunction}
 import org.apache.beam.sdk.transforms.DoFn.ProcessElement
 import org.apache.beam.sdk.values.KV
 import org.joda.time.Instant
@@ -134,5 +135,17 @@ object TrafficMaxLaneFlow {
           laneAvgSpeed.get)
       }
     }
+  }
+
+  /**
+    * A custom 'combine function' used with the Combine.perKey transform. Used to find the max lane
+    * flow over all the data points in the Window. Extracts the lane flow from the input string and
+    * determines whether it's the max seen so far. We're using a custom combiner instead of the Max
+    * transform because we want to retain the additional information we've associated with the flow
+    * value.
+    */
+  class MaxFlow extends SerializableFunction[JIterable[LaneInfo], LaneInfo] {
+    override def apply(input: JIterable[LaneInfo]): LaneInfo =
+      input.asScala.reduce((thiz, that) => if (that.laneFlow >= thiz.laneFlow) that else thiz)
   }
 }
