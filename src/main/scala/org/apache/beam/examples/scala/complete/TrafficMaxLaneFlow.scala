@@ -1,5 +1,8 @@
 package org.apache.beam.examples.scala.complete
 
+import org.apache.beam.examples.scala.typealias._
+import org.apache.beam.sdk.coders.{AvroCoder, DefaultCoder}
+
 /**
   * A Beam Example that runs in both batch and streaming modes with traffic sensor data. You can
   * configure the running mode by setting --streaming to true or false.
@@ -24,4 +27,24 @@ package org.apache.beam.examples.scala.complete
 object TrafficMaxLaneFlow {
   final val WINDOW_DURATION = 60 // Default sliding window duration in minutes
   final val WINDOW_SLIDE_EVERY = 5 // Default window 'slide every' setting in minutes
+
+  /**
+    * This class holds information about each lane in a station reading, along with some general
+    * information from the reading.
+    */
+  @DefaultCoder(classOf[AvroCoder[LaneInfo]])
+  case class LaneInfo(
+      stationId: String,
+      lane: String,
+      direction: String,
+      freeway: String,
+      recordedTimestamp: String,
+      laneFlow: JInteger,
+      totalFlow: JInteger,
+      laneAO: JDouble,
+      laneAS: JDouble) {
+    def this() {
+      this("", "", "", "", "", -1, -1, -1.0, -1.0)
+    }
+  }
 }
