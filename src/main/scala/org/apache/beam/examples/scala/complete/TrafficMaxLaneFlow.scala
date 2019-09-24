@@ -6,9 +6,10 @@ import scala.util.Try
 import com.google.api.services.bigquery.model.{TableFieldSchema, TableRow, TableSchema}
 import org.apache.beam.examples.scala.typealias._
 import org.apache.beam.sdk.coders.{AvroCoder, DefaultCoder}
+import org.apache.beam.sdk.io.TextIO
 import org.apache.beam.sdk.transforms.{Combine, DoFn, PTransform, ParDo, SerializableFunction}
 import org.apache.beam.sdk.transforms.DoFn.ProcessElement
-import org.apache.beam.sdk.values.{KV, PCollection}
+import org.apache.beam.sdk.values.{KV, PBegin, PCollection}
 import org.joda.time.Instant
 import org.joda.time.format.{DateTimeFormat, DateTimeFormatter}
 
@@ -208,5 +209,13 @@ object TrafficMaxLaneFlow {
       val results: PCollection[TableRow] = flowMaxes.apply(ParDo.of(new FormatMaxesFn()))
       results
     }
+  }
+
+  class ReadFileAndExtractTimestamps(inputFile: String)
+      extends PTransform[PBegin, PCollection[String]] {
+    override def expand(begin: PBegin): PCollection[String] =
+      begin
+        .apply(TextIO.read().from(inputFile))
+        .apply(ParDo.of(new ExtractTimestamps()))
   }
 }
