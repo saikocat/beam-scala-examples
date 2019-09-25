@@ -1,16 +1,24 @@
 package org.apache.beam.examples.scala.complete
 
+import java.io.IOException
+
 import scala.collection.JavaConverters._
 import scala.util.Try
 
 import com.google.api.services.bigquery.model.{TableFieldSchema, TableRow, TableSchema}
+import com.google.api.services.bigquery.model.TableReference
+import org.apache.beam.sdk.{Pipeline, PipelineResult}
 import org.apache.beam.examples.scala.typealias._
+import org.apache.beam.examples.common.{ExampleBigQueryTableOptions, ExampleOptions, ExampleUtils}
 import org.apache.beam.sdk.coders.{AvroCoder, DefaultCoder}
 import org.apache.beam.sdk.io.TextIO
+import org.apache.beam.sdk.io.gcp.bigquery.BigQueryIO
+import org.apache.beam.sdk.options._
 import org.apache.beam.sdk.transforms.{Combine, DoFn, PTransform, ParDo, SerializableFunction}
 import org.apache.beam.sdk.transforms.DoFn.ProcessElement
+import org.apache.beam.sdk.transforms.windowing.{SlidingWindows, Window}
 import org.apache.beam.sdk.values.{KV, PBegin, PCollection}
-import org.joda.time.Instant
+import org.joda.time.{Duration, Instant}
 import org.joda.time.format.{DateTimeFormat, DateTimeFormatter}
 
 /**
@@ -37,6 +45,72 @@ import org.joda.time.format.{DateTimeFormat, DateTimeFormatter}
 object TrafficMaxLaneFlow {
   final val WINDOW_DURATION = 60 // Default sliding window duration in minutes
   final val WINDOW_SLIDE_EVERY = 5 // Default window 'slide every' setting in minutes
+
+  /**
+    * Sets up and starts streaming pipeline.
+    *
+    * throws IOException if there is a problem setting up resources
+    */
+  @throws(classOf[IOException])
+  def main(args: Array[String]): Unit = {
+    val options = PipelineOptionsFactory
+      .fromArgs(args: _*)
+      .withValidation()
+      .as(classOf[TrafficMaxLaneFlowOptions])
+    options.setBigQuerySchema(FormatMaxesFn.getSchema())
+
+    runTrafficMaxLaneFlow(options)
+  }
+
+  @throws(classOf[IOException])
+  def runTrafficMaxLaneFlow(options: TrafficMaxLaneFlowOptions): Unit = {
+    // Using ExampleUtils to set up required resources.
+    val exampleUtils = new ExampleUtils(options);
+    exampleUtils.setup()
+
+    val pipeline = Pipeline.create(options)
+    val tableRef: TableReference = new TableReference()
+      .setProjectId(options.getProject)
+      .setDatasetId(options.getBigQueryDataset)
+      .setTableId(options.getBigQueryTable)
+
+    pipeline
+      .apply("ReadLines", new ReadFileAndExtractTimestamps(options.getInputFile))
+        // row... => <station route, station speed> ...
+      .apply(ParDo.of(new ExtractFlowInfoFn()))
+        // map the incoming data stream into sliding windows.
+      .apply(
+        Window.into(
+          SlidingWindows
+            .of(Duration.standardMinutes(options.getWindowDuration.toLong))
+            .every(Duration.standardMinutes(options.getWindowSlideEvery.toLong))))
+      .apply(new MaxLaneFlow())
+      .apply(BigQueryIO.writeTableRows().to(tableRef).withSchema(FormatMaxesFn.getSchema()))
+
+    // Run the pipeline.
+    val result: PipelineResult = pipeline.run()
+
+    // ExampleUtils will try to cancel the pipeline and the injector before the program exists.
+    exampleUtils.waitToFinish(result)
+  }
+
+  trait TrafficMaxLaneFlowOptions extends ExampleOptions with ExampleBigQueryTableOptions {
+    @Description("Path of the file to read from")
+    @Default.String(
+      "gs://apache-beam-samples/traffic_sensor/Freeways-5Minaa2010-01-01_to_2010-02-15_test2.csv")
+    def getInputFile: String
+    def setInputFile(value: String): Unit
+
+    @Description("Numeric value of sliding window duration, in minutes")
+    @Default.Integer(WINDOW_DURATION)
+    def getWindowDuration: JInteger
+    def setWindowDuration(value: JInteger): Unit
+
+    @Description("Numeric value of window 'slide every' setting, in minutes")
+    @Default.Integer(WINDOW_SLIDE_EVERY)
+    def getWindowSlideEvery: JInteger
+    def setWindowSlideEvery(value: JInteger): Unit
+  }
 
   /**
     * This class holds information about each lane in a station reading, along with some general
