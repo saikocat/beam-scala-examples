@@ -17,6 +17,11 @@
  */
 package org.apache.beam.examples.scala.complete
 
+import scala.collection.JavaConverters._
+import scala.collection.mutable.LinkedHashMap
+
+import org.apache.beam.examples.scala.typealias._
+
 /**
   * A Beam Example that runs in both batch and streaming modes with traffic sensor data. You can
   * configure the running mode by setting --streaming to true or false.
@@ -38,6 +43,18 @@ package org.apache.beam.examples.scala.complete
   * and then exits.
   */
 object TrafficRoutes {
+
+  // Instantiate some small predefined San Diego routes to analyze
+  val sdStations: JMap[String, String] = buildStationInfo()
   final val WINDOW_DURATION = 3 // Default sliding window duration in minutes
   final val WINDOW_SLIDE_EVERY = 1 // Default window 'slide every' setting in minutes
+
+  /** Define some small hard-wired San Diego 'routes' to track based on sensor station ID. */
+  private def buildStationInfo(): JMap[String, String] = {
+    val stations = LinkedHashMap(
+      "1108413" -> "SDRoute1", // from freeway 805 S
+      "1108699" -> "SDRoute2", // from freeway 78 E
+      "1108702" -> "SDRoute2")
+    stations.asJava
+  }
 }
