@@ -24,5 +24,6 @@ package object typealias {
   type JLong = java.lang.Long
   type JIterable[A] = java.lang.Iterable[A]
   type JList[A] = java.util.List[A]
+  type JMap[K, V] = java.util.Map[K, V]
   type JSet[A] = java.util.Set[A]
 }
