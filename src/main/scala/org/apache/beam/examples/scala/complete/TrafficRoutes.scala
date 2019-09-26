@@ -23,9 +23,10 @@ import scala.util.Try
 
 import org.apache.beam.examples.scala.typealias._
 import org.apache.beam.sdk.coders.{AvroCoder, DefaultCoder}
-import org.apache.beam.sdk.transforms.DoFn
+import org.apache.beam.sdk.io.TextIO
+import org.apache.beam.sdk.transforms.{DoFn, PTransform, ParDo}
 import org.apache.beam.sdk.transforms.DoFn.ProcessElement
-import org.apache.beam.sdk.values.KV
+import org.apache.beam.sdk.values.{KV, PBegin, PCollection}
 import org.joda.time.Instant
 import org.joda.time.format.{DateTimeFormat, DateTimeFormatter}
 
@@ -174,6 +175,12 @@ object TrafficRoutes {
         case _ => ctx.output(KV.of(stats.route, stats.routeInfo))
       }
     }
+  }
+
+  class ReadFileAndExtractTimestamps(inputFile: String)
+      extends PTransform[PBegin, PCollection[String]] {
+    override def expand(begin: PBegin): PCollection[String] =
+      begin.apply(TextIO.read().from(inputFile)).apply(ParDo.of(new ExtractTimestamps()))
   }
 
   /** Define some small hard-wired San Diego 'routes' to track based on sensor station ID. */
