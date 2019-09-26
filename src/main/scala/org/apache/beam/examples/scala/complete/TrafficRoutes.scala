@@ -18,7 +18,7 @@
 package org.apache.beam.examples.scala.complete
 
 import scala.collection.JavaConverters._
-import scala.collection.mutable.LinkedHashMap
+import scala.collection.mutable
 import scala.util.Try
 
 import org.apache.beam.examples.scala.typealias._
@@ -125,9 +125,60 @@ object TrafficRoutes {
     }
   }
 
+  /**
+    * For a given route, track average speed for the window. Calculate whether traffic is currently
+    * slowing down, via a predefined threshold. If a supermajority of speeds in this sliding window
+    * are less than the previous reading we call this a 'slowdown'. Note: these calculations are for
+    * example purposes only, and are unrealistic and oversimplified.
+    */
+  class GatherStats extends DoFn[KV[String, JIterable[StationSpeed]], KV[String, RouteInfo]] {
+    case class StationSpeedStats(
+        route: String,
+        speedSum: Double = 0.0,
+        speedCount: Int = 0,
+        speedups: Int = 0,
+        slowdowns: Int = 0) {
+      def speedAvg: Double = speedSum / speedCount
+      def slowdownEvent: Boolean = slowdowns >= 2 * speedups
+      def routeInfo: RouteInfo = new RouteInfo(route, speedAvg, slowdownEvent)
+    }
+
+    @ProcessElement
+    def processElement(ctx: ProcessContext) = {
+      val route: String = ctx.element.getKey
+      val prevSpeeds = new mutable.HashMap[String, Double]
+      val infoList: Seq[StationSpeed] =
+        ctx.element.getValue.asScala.toSeq.filter(item => Option(item.avgSpeed).nonEmpty).sorted
+
+      val stats = infoList.foldLeft(StationSpeedStats(route = route))(
+        (acc: StationSpeedStats, item: StationSpeed) => {
+          val speed = item.avgSpeed
+          val (speedups, slowdowns) = prevSpeeds.get(item.stationId) match {
+            case Some(lastSpeed) => if (lastSpeed < speed) (1, 0) else (0, 1)
+            case None => {
+              prevSpeeds(item.stationId) = speed
+              (0, 0)
+            }
+          }
+
+          acc.copy(
+            speedSum = acc.speedSum + speed.toDouble,
+            speedCount = acc.speedCount + 1,
+            speedups = acc.speedups + speedups,
+            slowdowns = acc.slowdowns + slowdowns
+          )
+        })
+
+      stats.speedCount match {
+        case 0 => ()
+        case _ => ctx.output(KV.of(stats.route, stats.routeInfo))
+      }
+    }
+  }
+
   /** Define some small hard-wired San Diego 'routes' to track based on sensor station ID. */
   private def buildStationInfo(): JMap[String, String] = {
-    val stations = LinkedHashMap(
+    val stations = mutable.LinkedHashMap(
       "1108413" -> "SDRoute1", // from freeway 805 S
       "1108699" -> "SDRoute2", // from freeway 78 E
       "1108702" -> "SDRoute2")
