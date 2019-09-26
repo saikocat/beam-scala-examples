@@ -21,6 +21,7 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable.LinkedHashMap
 
 import org.apache.beam.examples.scala.typealias._
+import org.apache.beam.sdk.coders.{AvroCoder, DefaultCoder}
 
 /**
   * A Beam Example that runs in both batch and streaming modes with traffic sensor data. You can
@@ -48,6 +49,34 @@ object TrafficRoutes {
   val sdStations: JMap[String, String] = buildStationInfo()
   final val WINDOW_DURATION = 3 // Default sliding window duration in minutes
   final val WINDOW_SLIDE_EVERY = 1 // Default window 'slide every' setting in minutes
+
+  /** This class holds information about a station reading's average speed. */
+  @DefaultCoder(classOf[AvroCoder[StationSpeed]])
+  case class StationSpeed(stationId: String, avgSpeed: JDouble, timestamp: JLong)
+      extends Ordered[StationSpeed] {
+    def this() {
+      this("", 0.0, 0L)
+    }
+
+    override def compare(that: StationSpeed): Int = timestamp.compareTo(that.timestamp)
+
+    override def equals(that: Any): Boolean =
+      that match {
+        case that: StationSpeed =>
+          that.isInstanceOf[StationSpeed] && timestamp == that.timestamp
+        case _ => false
+      }
+
+    override def hashCode: Int = timestamp.hashCode
+  }
+
+  /** This class holds information about a route's speed/slowdown. */
+  @DefaultCoder(classOf[AvroCoder[RouteInfo]])
+  case class RouteInfo(route: String, avgSpeed: JDouble, slowdownEvent: JBoolean) {
+    def this() {
+      this("", 0.0, false)
+    }
+  }
 
   /** Define some small hard-wired San Diego 'routes' to track based on sensor station ID. */
   private def buildStationInfo(): JMap[String, String] = {
