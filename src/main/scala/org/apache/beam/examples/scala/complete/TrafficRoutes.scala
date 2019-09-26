@@ -25,6 +25,7 @@ import org.apache.beam.examples.scala.typealias._
 import org.apache.beam.sdk.coders.{AvroCoder, DefaultCoder}
 import org.apache.beam.sdk.transforms.DoFn
 import org.apache.beam.sdk.transforms.DoFn.ProcessElement
+import org.apache.beam.sdk.values.KV
 import org.joda.time.Instant
 import org.joda.time.format.{DateTimeFormat, DateTimeFormatter}
 
@@ -86,7 +87,7 @@ object TrafficRoutes {
   /** Extract the timestamp field from the input string, and use it as the element timestamp. */
   class ExtractTimestamps extends DoFn[String, String] {
     private final val dateTimeFormat: DateTimeFormatter =
-        DateTimeFormat.forPattern("MM/dd/yyyy HH:mm:ss")
+      DateTimeFormat.forPattern("MM/dd/yyyy HH:mm:ss")
 
     @ProcessElement
     def processElement(ctx: ProcessContext): Unit = {
@@ -98,6 +99,29 @@ object TrafficRoutes {
         parsedTimestamp = new Instant(timestampMs)
         if items.length > 0
       } ctx.outputWithTimestamp(ctx.element, parsedTimestamp)
+    }
+  }
+
+  /**
+    * Filter out readings for the stations along predefined 'routes', and output (station, speed
+    * info) keyed on route.
+    */
+  class ExtractStationSpeedFn extends DoFn[String, KV[String, StationSpeed]] {
+    @ProcessElement
+    def processElement(ctx: ProcessContext): Unit = {
+      val items = ctx.element.split(",")
+
+      for {
+        stationType <- Try(items(4))
+        avgSpeed <- Try(items(9).toDouble)
+        stationId <- Try(items(1))
+        if "ML" == stationType && sdStations.containsKey(stationId)
+      } {
+        val stationSpeed = StationSpeed(stationId, avgSpeed, ctx.timestamp.getMillis)
+        // The tuple key is the 'route' name stored in the 'sdStations' hash.
+        val outputValue: KV[String, StationSpeed] = KV.of(sdStations.get(stationId), stationSpeed)
+        ctx.output(outputValue)
+      }
     }
   }
 
