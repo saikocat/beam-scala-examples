@@ -25,7 +25,7 @@ import com.google.api.services.bigquery.model.{TableFieldSchema, TableRow, Table
 import org.apache.beam.examples.scala.typealias._
 import org.apache.beam.sdk.coders.{AvroCoder, DefaultCoder}
 import org.apache.beam.sdk.io.TextIO
-import org.apache.beam.sdk.transforms.{DoFn, PTransform, ParDo}
+import org.apache.beam.sdk.transforms.{DoFn, GroupByKey, PTransform, ParDo}
 import org.apache.beam.sdk.transforms.DoFn.ProcessElement
 import org.apache.beam.sdk.values.{KV, PBegin, PCollection}
 import org.joda.time.Instant
@@ -203,6 +203,29 @@ object TrafficRoutes {
         )
         new TableSchema().setFields(fields.asJava)
       }
+    }
+  }
+
+  /**
+    * This PTransform extracts speed info from traffic station readings. It groups the readings by
+    * 'route' and analyzes traffic slowdown for that route. Lastly, it formats the results for
+    * BigQuery.
+    */
+  class TrackSpeed
+      extends PTransform[PCollection[KV[String, StationSpeed]], PCollection[TableRow]] {
+    override def expand(
+        stationSpeed: PCollection[KV[String, StationSpeed]]): PCollection[TableRow] = {
+      // Apply a GroupByKey transform to collect a list of all station
+      // readings for a given route.
+      val timeGroup: PCollection[KV[String, JIterable[StationSpeed]]] =
+        stationSpeed.apply(GroupByKey.create())
+
+      // Analyze 'slowdown' over the route readings.
+      val stats: PCollection[KV[String, RouteInfo]] = timeGroup.apply(ParDo.of(new GatherStats()))
+
+      // Format the results for writing to BigQuery
+      val results: PCollection[TableRow] = stats.apply(ParDo.of(new FormatStatsFn()))
+      results
     }
   }
 
