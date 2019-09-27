@@ -21,6 +21,7 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.util.Try
 
+import com.google.api.services.bigquery.model.{TableFieldSchema, TableRow, TableSchema}
 import org.apache.beam.examples.scala.typealias._
 import org.apache.beam.sdk.coders.{AvroCoder, DefaultCoder}
 import org.apache.beam.sdk.io.TextIO
@@ -173,6 +174,34 @@ object TrafficRoutes {
       stats.speedCount match {
         case 0 => ()
         case _ => ctx.output(KV.of(stats.route, stats.routeInfo))
+      }
+    }
+  }
+
+  /** Format the results of the slowdown calculations to a TableRow, to save to BigQuery. */
+  class FormatStatsFn extends DoFn[KV[String, RouteInfo], TableRow] {
+    @ProcessElement
+    def processElement(ctx: ProcessContext): Unit = {
+      val routeInfo: RouteInfo = ctx.element.getValue
+      val row: TableRow =
+        new TableRow()
+          .set("avg_speed", routeInfo.avgSpeed)
+          .set("slowdown_event", routeInfo.slowdownEvent)
+          .set("route", ctx.element.getKey)
+          .set("window_timestamp", ctx.timestamp.toString)
+      ctx.output(row)
+    }
+
+    /** Defines the BigQuery schema used for the output. */
+    object FormatStatsFn {
+      def getSchema(): TableSchema = {
+        val fields: List[TableFieldSchema] = List(
+          new TableFieldSchema().setName("route").setType("STRING"),
+          new TableFieldSchema().setName("avg_speed").setType("FLOAT"),
+          new TableFieldSchema().setName("slowdown_event").setType("BOOLEAN"),
+          new TableFieldSchema().setName("window_timestamp").setType("TIMESTAMP")
+        )
+        new TableSchema().setFields(fields.asJava)
       }
     }
   }
