@@ -17,6 +17,11 @@
  */
 package org.apache.beam.examples.scala.complete.game
 
+import java.util.Objects
+
+import org.apache.beam.examples.scala.typealias._
+import org.apache.beam.sdk.coders.{AvroCoder, DefaultCoder}
+
 /**
   * This class is the first in a series of four pipelines that tell a story in a 'gaming' domain.
   * Concepts: batch processing, reading input from text files, writing output to text files, using
@@ -30,4 +35,21 @@ package org.apache.beam.examples.scala.complete.game
   * sum of scores per user, over an entire batch of gaming data (collected, say, for each day). The
   * batch processing will not include any late data that arrives after the day's cutoff point.
   */
-object UserScore {}
+object UserScore {
+
+  /** Class to hold info about a game event. */
+  @DefaultCoder(classOf[AvroCoder[GameActionInfo]])
+  case class GameActionInfo(user: String, team: String, score: JInteger, timestamp: JLong) {
+    def this() {
+      this("", "", 0, 0L)
+    }
+
+    def getKey(keyname: String): String =
+      keyname match {
+        case "team" => this.team
+        case _ => this.user
+      }
+
+    override def hashCode: Int = Objects.hash(user, team, score, timestamp)
+  }
+}
