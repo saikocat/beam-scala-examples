@@ -191,18 +191,18 @@ object TrafficRoutes {
           .set("window_timestamp", ctx.timestamp.toString)
       ctx.output(row)
     }
+  }
 
-    /** Defines the BigQuery schema used for the output. */
-    object FormatStatsFn {
-      def getSchema(): TableSchema = {
-        val fields: List[TableFieldSchema] = List(
-          new TableFieldSchema().setName("route").setType("STRING"),
-          new TableFieldSchema().setName("avg_speed").setType("FLOAT"),
-          new TableFieldSchema().setName("slowdown_event").setType("BOOLEAN"),
-          new TableFieldSchema().setName("window_timestamp").setType("TIMESTAMP")
-        )
-        new TableSchema().setFields(fields.asJava)
-      }
+  /** Defines the BigQuery schema used for the output. */
+  object FormatStatsFn {
+    def getSchema(): TableSchema = {
+      val fields: List[TableFieldSchema] = List(
+        new TableFieldSchema().setName("route").setType("STRING"),
+        new TableFieldSchema().setName("avg_speed").setType("FLOAT"),
+        new TableFieldSchema().setName("slowdown_event").setType("BOOLEAN"),
+        new TableFieldSchema().setName("window_timestamp").setType("TIMESTAMP")
+      )
+      new TableSchema().setFields(fields.asJava)
     }
   }
 
