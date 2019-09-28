@@ -20,7 +20,14 @@ using [Scio](https://github.com/spotify/scio) API.
 - [x] TopWikipediaSessions
 - [x] TrafficMaxLaneFlow
 - [x] TrafficRoutes
+
 ## Complete/Game
+
+- [ ] UserScore
+- [ ] HourlyTeamScore
+- [ ] StatefulTeamScore
+- [ ] LeaderBoard
+- [ ] GameStats
 
 ## Cookbook
 
