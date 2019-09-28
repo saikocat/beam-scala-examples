@@ -19,8 +19,14 @@ package org.apache.beam.examples.scala.complete.game
 
 import java.util.Objects
 
+import scala.util.{Failure, Success, Try}
+
 import org.apache.beam.examples.scala.typealias._
 import org.apache.beam.sdk.coders.{AvroCoder, DefaultCoder}
+import org.apache.beam.sdk.metrics.{Counter, Metrics}
+import org.apache.beam.sdk.transforms.DoFn
+import org.apache.beam.sdk.transforms.DoFn.ProcessElement
+import org.slf4j.{Logger, LoggerFactory}
 
 /**
   * This class is the first in a series of four pipelines that tell a story in a 'gaming' domain.
@@ -51,5 +57,43 @@ object UserScore {
       }
 
     override def hashCode: Int = Objects.hash(user, team, score, timestamp)
+  }
+
+  /**
+    * Parses the raw game event info into GameActionInfo objects. Each event line has the following
+    * format: username,teamname,score,timestamp_in_ms,readable_time e.g.:
+    * user2_AsparagusPig,AsparagusPig,10,1445230923951,2015-11-02 09:09:28.224 The human-readable
+    * time string is not used here.
+    */
+  class ParseEventFn extends DoFn[String, GameActionInfo] {
+    import ParseEventFn.LOG
+
+    private final val numParseErrors: Counter = Metrics.counter("main", "ParseErrors")
+
+    @ProcessElement
+    def processElement(ctx: ProcessContext): Unit = {
+      val components = ctx.element.split(",", -1)
+
+      val gInfo: Try[GameActionInfo] = for {
+        score <- Try(components(2).trim().toInt)
+        timestamp <- Try(components(3).trim().toLong)
+        user = components(0).trim()
+        team = components(1).trim()
+      } yield new GameActionInfo(user, team, score, timestamp)
+
+      gInfo match {
+        case Success(result) => ctx.output(result)
+        case f @ (Failure(_: ArrayIndexOutOfBoundsException) | Failure(_: NumberFormatException)) =>
+          numParseErrors.inc()
+          LOG.info(s"Parse error on ${ctx.element}, ${f.failed.get.getMessage}")
+        case Failure(e) => LOG.error(s"Error encountered on ${ctx.element}, ${e.getMessage}")
+      }
+    }
+  }
+
+  /** Companion object for ParseEventFn */
+  object ParseEventFn {
+    // Log and count parse errors.
+    private final val LOG: Logger = LoggerFactory.getLogger(classOf[ParseEventFn])
   }
 }
