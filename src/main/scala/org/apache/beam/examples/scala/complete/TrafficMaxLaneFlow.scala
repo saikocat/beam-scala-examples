@@ -134,8 +134,7 @@ object TrafficMaxLaneFlow {
 
   /** Extract the timestamp field from the input string, and use it as the element timestamp. */
   class ExtractTimestamps extends DoFn[String, String] {
-    private final val dateTimeFormat: DateTimeFormatter =
-      DateTimeFormat.forPattern("MM/dd/yyyy HH:mm:ss")
+    import ExtractTimestamps.dateTimeFormat
 
     @ProcessElement
     def processElement(ctx: ProcessContext): Unit = {
@@ -148,6 +147,12 @@ object TrafficMaxLaneFlow {
         if items.length > 0
       } ctx.outputWithTimestamp(ctx.element, parsedTimestamp)
     }
+  }
+
+  /** companion object - dateTimeFormat is not serializable if non static */
+  object ExtractTimestamps {
+    private final val dateTimeFormat: DateTimeFormatter =
+      DateTimeFormat.forPattern("MM/dd/yyyy HH:mm:ss")
   }
 
   /**
