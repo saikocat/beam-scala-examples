@@ -22,13 +22,19 @@ import scala.collection.mutable
 import scala.util.Try
 
 import com.google.api.services.bigquery.model.{TableFieldSchema, TableRow, TableSchema}
+import com.google.api.services.bigquery.model.TableReference
+import org.apache.beam.examples.common.{ExampleBigQueryTableOptions, ExampleOptions, ExampleUtils}
 import org.apache.beam.examples.scala.typealias._
+import org.apache.beam.sdk.{Pipeline, PipelineResult}
 import org.apache.beam.sdk.coders.{AvroCoder, DefaultCoder}
 import org.apache.beam.sdk.io.TextIO
+import org.apache.beam.sdk.io.gcp.bigquery.BigQueryIO
+import org.apache.beam.sdk.options._
 import org.apache.beam.sdk.transforms.{DoFn, GroupByKey, PTransform, ParDo}
 import org.apache.beam.sdk.transforms.DoFn.ProcessElement
 import org.apache.beam.sdk.values.{KV, PBegin, PCollection}
-import org.joda.time.Instant
+import org.apache.beam.sdk.transforms.windowing.{SlidingWindows, Window}
+import org.joda.time.{Duration, Instant}
 import org.joda.time.format.{DateTimeFormat, DateTimeFormatter}
 
 /**
@@ -57,6 +63,66 @@ object TrafficRoutes {
   val sdStations: JMap[String, String] = buildStationInfo()
   final val WINDOW_DURATION = 3 // Default sliding window duration in minutes
   final val WINDOW_SLIDE_EVERY = 1 // Default window 'slide every' setting in minutes
+
+  def main(args: Array[String]): Unit = {
+    val options = PipelineOptionsFactory
+      .fromArgs(args: _*)
+      .withValidation()
+      .as(classOf[TrafficRoutesOptions])
+
+    options.setBigQuerySchema(FormatStatsFn.getSchema())
+
+    runTrafficRoutes(options)
+  }
+
+  def runTrafficRoutes(options: TrafficRoutesOptions): Unit = {
+    // Using ExampleUtils to set up required resources.
+    val exampleUtils = new ExampleUtils(options)
+    exampleUtils.setup()
+
+    val pipeline = Pipeline.create(options)
+    val tableRef: TableReference = new TableReference()
+      .setProjectId(options.getProject)
+      .setDatasetId(options.getBigQueryDataset)
+      .setTableId(options.getBigQueryTable)
+
+    pipeline
+      .apply("ReadLines", new ReadFileAndExtractTimestamps(options.getInputFile))
+        // row... => <station route, station speed> ...
+      .apply(ParDo.of(new ExtractStationSpeedFn()))
+        // map the incoming data stream into sliding windows.
+      .apply(
+        Window.into(
+          SlidingWindows
+            .of(Duration.standardMinutes(options.getWindowDuration.toLong))
+            .every(Duration.standardMinutes(options.getWindowSlideEvery.toLong))))
+      .apply(new TrackSpeed())
+      .apply(BigQueryIO.writeTableRows().to(tableRef).withSchema(FormatStatsFn.getSchema()))
+
+    // Run the pipeline.
+    val result: PipelineResult = pipeline.run()
+
+    // ExampleUtils will try to cancel the pipeline and the injector before the program exists.
+    exampleUtils.waitToFinish(result)
+  }
+
+  trait TrafficRoutesOptions extends ExampleOptions with ExampleBigQueryTableOptions {
+    @Description("Path of the file to read from")
+    @Default.String(
+      "gs://apache-beam-samples/traffic_sensor/Freeways-5Minaa2010-01-01_to_2010-02-15_test2.csv")
+    def getInputFile: String
+    def setInputFile(value: String): Unit
+
+    @Description("Numeric value of sliding window duration, in minutes")
+    @Default.Integer(WINDOW_DURATION)
+    def getWindowDuration: JInteger
+    def setWindowDuration(value: JInteger): Unit
+
+    @Description("Numeric value of window 'slide every' setting, in minutes")
+    @Default.Integer(WINDOW_SLIDE_EVERY)
+    def getWindowSlideEvery: JInteger
+    def setWindowSlideEvery(value: JInteger): Unit
+  }
 
   /** This class holds information about a station reading's average speed. */
   @DefaultCoder(classOf[AvroCoder[StationSpeed]])
