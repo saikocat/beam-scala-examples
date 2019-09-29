@@ -45,6 +45,7 @@ class WriteToText[InputT](
     fieldFn: JMap[String, WriteToText.FieldFn[InputT]],
     windowed: Boolean)
     extends PTransform[PCollection[InputT], PDone] {
+  import WriteToText.formatter
 
   /** Convert each key/score pair into a row as specified by fieldFn. */
   protected class BuildRowFn extends DoFn[InputT, String] {
@@ -141,5 +142,21 @@ object WriteToText {
         numShards: Int,
         outputFileHints: OutputFileHints): ResourceId =
       throw new UnsupportedOperationException("Unsupported.")
+  }
+}
+
+/** companion object */
+object WriteToText {
+  private final val formatter: DateTimeFormatter =
+    DateTimeFormat
+      .forPattern("yyyy-MM-dd HH:mm:ss.SSS")
+      .withZone(DateTimeZone.forTimeZone(TimeZone.getTimeZone("UTC")))
+
+  /**
+    * A Serializable function from a DoFn.ProcessContext and BoundedWindow to
+    * the value for that field.
+    */
+  trait FieldFn[InputT] extends Serializable {
+    def apply(context: DoFn[InputT, String]#ProcessContext, window: BoundedWindow): Object
   }
 }
