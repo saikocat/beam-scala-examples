@@ -59,32 +59,14 @@ class WriteToText[InputT](
   }
 
   override def expand(teamAndScore: PCollection[InputT]): PDone = {
-    if (windowed) {
-      teamAndScore
-        .apply("ConvertToRow", ParDo.of(new BuildRowFn()))
-        .apply(new WriteToText.WriteOneFilePerWindow(filenamePrefix))
-    } else {
-      teamAndScore
-        .apply("ConvertToRow", ParDo.of(new BuildRowFn()))
-        .apply(TextIO.write().to(filenamePrefix))
-    }
+    val writeStrategy =
+      if (windowed) new WriteOneFilePerWindow(filenamePrefix)
+      else TextIO.write().to(filenamePrefix)
+
+    teamAndScore
+      .apply("ConvertToRow", ParDo.of(new BuildRowFn()))
+      .apply(writeStrategy)
     PDone.in(teamAndScore.getPipeline())
-  }
-}
-
-/** companion object */
-object WriteToText {
-  private final val formatter: DateTimeFormatter =
-    DateTimeFormat
-      .forPattern("yyyy-MM-dd HH:mm:ss.SSS")
-      .withZone(DateTimeZone.forTimeZone(TimeZone.getTimeZone("UTC")))
-
-  /**
-    * A Serializable function from a DoFn.ProcessContext and BoundedWindow to
-    * the value for that field.
-    */
-  trait FieldFn[InputT] extends Serializable {
-    def apply(context: DoFn[InputT, String]#ProcessContext, window: BoundedWindow): Object
   }
 
   /**
