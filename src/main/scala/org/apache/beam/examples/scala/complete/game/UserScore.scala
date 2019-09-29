@@ -24,8 +24,9 @@ import scala.util.{Failure, Success, Try}
 import org.apache.beam.examples.scala.typealias._
 import org.apache.beam.sdk.coders.{AvroCoder, DefaultCoder}
 import org.apache.beam.sdk.metrics.{Counter, Metrics}
-import org.apache.beam.sdk.transforms.DoFn
+import org.apache.beam.sdk.transforms.{DoFn, MapElements, PTransform, Sum}
 import org.apache.beam.sdk.transforms.DoFn.ProcessElement
+import org.apache.beam.sdk.values.{KV, PCollection, TypeDescriptors}
 import org.slf4j.{Logger, LoggerFactory}
 
 /**
@@ -95,5 +96,21 @@ object UserScore {
   object ParseEventFn {
     // Log and count parse errors.
     private final val LOG: Logger = LoggerFactory.getLogger(classOf[ParseEventFn])
+  }
+
+  /**
+    * A transform to extract key/score information from GameActionInfo, and sum the scores. The
+    * constructor arg determines whether 'team' or 'user' info is extracted.
+    */
+  class ExtractAndSumScore(field: String)
+      extends PTransform[PCollection[GameActionInfo], PCollection[KV[String, JInteger]]] {
+
+    override def expand(gameInfo: PCollection[GameActionInfo]): PCollection[KV[String, JInteger]] =
+      gameInfo
+        .apply(
+          MapElements
+            .into(TypeDescriptors.kvs(TypeDescriptors.strings(), TypeDescriptors.integers()))
+            .via((gInfo: GameActionInfo) => KV.of(gInfo.getKey(field), gInfo.score)))
+        .apply(Sum.integersPerKey())
   }
 }
