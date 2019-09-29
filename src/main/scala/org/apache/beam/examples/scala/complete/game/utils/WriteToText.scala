@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.beam.examples.complete.game.utils
+package org.apache.beam.examples.scala.complete.game.utils
 
 import java.io.Serializable
 import java.util.TimeZone
