@@ -64,7 +64,9 @@ object UserScore {
       .apply("ParseGameEvent", ParDo.of(new ParseEventFn()))
         // Extract and sum username/score pairs from the event data.
       .apply("ExtractUserScore", new ExtractAndSumScore("user"))
-      .apply("WriteUserScoreSums", new WriteToText(options.getOutput, configureOutput, false))
+      .apply(
+        "WriteUserScoreSums",
+        new WriteToText(options.getOutput, configureOutput.asJava, false))
 
     // Run the batch pipeline.
     pipeline.run().waitUntilFinish()
@@ -93,7 +95,7 @@ object UserScore {
     * Create a map of information that describes how to write pipeline output to text. This map is
     * passed to the {WriteToText constructor to write user score sums.
     */
-  def configureOutput(): JMap[String, WriteToText.FieldFn[KV[String, JInteger]]] =
+  def configureOutput(): Map[String, WriteToText.FieldFn[KV[String, JInteger]]] =
     Map[String, WriteToText.FieldFn[KV[String, JInteger]]](
       "user" -> { (ctx, _) =>
         ctx.element.getKey
@@ -101,7 +103,7 @@ object UserScore {
       "total_score" -> { (ctx, _) =>
         ctx.element.getValue
       }
-    ).asJava
+    )
 
   /** Class to hold info about a game event. */
   @DefaultCoder(classOf[AvroCoder[GameActionInfo]])
