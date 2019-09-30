@@ -66,7 +66,7 @@ object UserScore {
       .apply("ExtractUserScore", new ExtractAndSumScore("user"))
       .apply(
         "WriteUserScoreSums",
-        new WriteToText(options.getOutput, configureOutput.asJava, false))
+        new WriteToText(options.getOutput, configureOutput().asJava, false))
 
     // Run the batch pipeline.
     pipeline.run().waitUntilFinish()
