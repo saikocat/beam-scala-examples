@@ -19,12 +19,17 @@ package org.apache.beam.examples.scala.complete.game
 
 import java.util.Objects
 
+import scala.collection.JavaConverters._
 import scala.util.{Failure, Success, Try}
 
+import org.apache.beam.examples.scala.complete.game.utils.WriteToText
 import org.apache.beam.examples.scala.typealias._
+import org.apache.beam.sdk.Pipeline
 import org.apache.beam.sdk.coders.{AvroCoder, DefaultCoder}
+import org.apache.beam.sdk.io.TextIO
+import org.apache.beam.sdk.options._
 import org.apache.beam.sdk.metrics.{Counter, Metrics}
-import org.apache.beam.sdk.transforms.{DoFn, MapElements, PTransform, Sum}
+import org.apache.beam.sdk.transforms.{DoFn, MapElements, PTransform, ParDo, Sum}
 import org.apache.beam.sdk.transforms.DoFn.ProcessElement
 import org.apache.beam.sdk.values.{KV, PCollection, TypeDescriptors}
 import org.slf4j.{Logger, LoggerFactory}
@@ -43,6 +48,60 @@ import org.slf4j.{Logger, LoggerFactory}
   * batch processing will not include any late data that arrives after the day's cutoff point.
   */
 object UserScore {
+
+  /** Run a batch pipeline. */
+  def main(args: Array[String]): Unit = {
+    // Begin constructing a pipeline configured by commandline flags.
+    val options = PipelineOptionsFactory
+      .fromArgs(args: _*)
+      .withValidation()
+      .as(classOf[Options])
+    val pipeline: Pipeline = Pipeline.create(options)
+
+    // Read events from a text file and parse them.
+    pipeline
+      .apply(TextIO.read().from(options.getInput))
+      .apply("ParseGameEvent", ParDo.of(new ParseEventFn()))
+        // Extract and sum username/score pairs from the event data.
+      .apply("ExtractUserScore", new ExtractAndSumScore("user"))
+      .apply("WriteUserScoreSums", new WriteToText(options.getOutput, configureOutput, false))
+
+    // Run the batch pipeline.
+    pipeline.run().waitUntilFinish()
+    ()
+  }
+
+  /** Options supported by UserScore. */
+  trait Options extends PipelineOptions {
+    @Description("Path to the data file(s) containing game data.")
+    /* The default maps to two large Google Cloud Storage files (each ~12GB) holding two subsequent
+    day's worth (roughly) of data.
+    Note: You may want to use a small sample dataset to test it locally/quickly : gs://apache-beam-samples/game/small/gaming_data.csv
+    You can also download it via the command line gsutil cp gs://apache-beam-samples/game/small/gaming_data.csv ./destination_folder/gaming_data.csv */
+    @Default.String("gs://apache-beam-samples/game/gaming_data*.csv")
+    def getInput: String
+    def setInput(value: String): Unit
+
+    // Set this required option to specify where to write the output.
+    @Description("Path of the file to write to.")
+    @Validation.Required
+    def getOutput: String
+    def setOutput(value: String): Unit
+  }
+
+  /**
+    * Create a map of information that describes how to write pipeline output to text. This map is
+    * passed to the {WriteToText constructor to write user score sums.
+    */
+  def configureOutput(): JMap[String, WriteToText.FieldFn[KV[String, JInteger]]] =
+    Map[String, WriteToText.FieldFn[KV[String, JInteger]]](
+      "user" -> { (ctx, _) =>
+        ctx.element.getKey
+      },
+      "total_score" -> { (ctx, _) =>
+        ctx.element.getValue
+      }
+    ).asJava
 
   /** Class to hold info about a game event. */
   @DefaultCoder(classOf[AvroCoder[GameActionInfo]])
