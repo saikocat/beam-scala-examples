@@ -19,8 +19,7 @@ package org.apache.beam.examples.scala.complete.game.utils
 
 import java.util.TimeZone
 import org.joda.time.DateTimeZone
-import org.joda.time.format.DateTimeFormat
-import org.joda.time.format.DateTimeFormatter
+import org.joda.time.format.{DateTimeFormat, DateTimeFormatter}
 
 /** Shared constants between game series classes. */
 object GameConstants {
@@ -30,5 +29,7 @@ object GameConstants {
   final val DATE_TIME_FORMATTER: DateTimeFormatter =
     DateTimeFormat
       .forPattern("yyyy-MM-dd HH:mm:ss.SSS")
-      .withZone(DateTimeZone.forTimeZone(TimeZone.getTimeZone("UTC")))
+      .withZone(DateTimeZone.forTimeZone(TimeZone.getTimeZone(TIMEZONE)))
+
+  final val TIMEZONE = "UTC"
 }
