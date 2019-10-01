@@ -17,6 +17,13 @@
  */
 package org.apache.beam.examples.scala.complete.game
 
+import org.apache.beam.examples.scala.complete.game.utils.WriteToBigQuery.FieldInfo
+import org.apache.beam.examples.scala.complete.game.utils.GameConstants
+import org.apache.beam.examples.scala.typealias._
+import org.apache.beam.sdk.transforms.windowing.IntervalWindow
+import org.apache.beam.sdk.values.KV
+import org.joda.time.{Duration, Instant}
+
 /**
   * This class is the third in a series of four pipelines that tell a story in a 'gaming' domain,
   * following UserScore and HourlyTeamScore. Concepts include: processing unbounded
@@ -49,4 +56,22 @@ package org.apache.beam.examples.scala.complete.game
 object LeaderBoard {
   final val FIVE_MINUTES: Duration = Duration.standardMinutes(5)
   final val TEN_MINUTES: Duration = Duration.standardMinutes(10)
+
+  /**
+    * Create a map of information that describes how to write pipeline output to BigQuery. This map
+    * is used to write team score sums and includes event timing information.
+    */
+  protected def configureWindowedTableWrite(): Map[String, FieldInfo[KV[String, JInteger]]] =
+    Map[String, FieldInfo[KV[String, JInteger]]](
+      "team" -> new FieldInfo("STRING", (ctx, _) => ctx.element.getKey),
+      "total_score" -> new FieldInfo("INTEGER", (ctx, _) => ctx.element.getValue),
+      "window_start" -> new FieldInfo("STRING", (_, boundedWindow) => {
+        val window = boundedWindow.asInstanceOf[IntervalWindow]
+        GameConstants.DATE_TIME_FORMATTER.print(window.start())
+      }),
+      "processing_time" -> new FieldInfo(
+        "STRING",
+        (_, _) => GameConstants.DATE_TIME_FORMATTER.print(Instant.now())),
+      "timing" -> new FieldInfo("STRING", (ctx, _) => ctx.pane.getTiming.toString)
+    )
 }
