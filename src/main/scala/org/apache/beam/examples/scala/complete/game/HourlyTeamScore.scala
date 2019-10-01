@@ -140,7 +140,7 @@ object HourlyTeamScore {
     * passed to the WriteToText constructor to write team score sums and includes information
     * about window start time.
     */
-  protected def configureOutput(): Map[String, WriteToText.FieldFn[KV[String, JInteger]]] =
+  def configureOutput(): Map[String, WriteToText.FieldFn[KV[String, JInteger]]] =
     UserScore.configureOutput() ++ Map[String, WriteToText.FieldFn[KV[String, JInteger]]](
       "window_start" -> { (_, boundedWindow) =>
         {

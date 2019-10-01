@@ -61,7 +61,7 @@ object LeaderBoard {
     * Create a map of information that describes how to write pipeline output to BigQuery. This map
     * is used to write team score sums and includes event timing information.
     */
-  protected def configureWindowedTableWrite(): Map[String, FieldInfo[KV[String, JInteger]]] =
+  def configureWindowedTableWrite(): Map[String, FieldInfo[KV[String, JInteger]]] =
     Map[String, FieldInfo[KV[String, JInteger]]](
       "team" -> new FieldInfo("STRING", (ctx, _) => ctx.element.getKey),
       "total_score" -> new FieldInfo("INTEGER", (ctx, _) => ctx.element.getValue),
