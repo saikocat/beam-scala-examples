@@ -23,8 +23,8 @@ using [Scio](https://github.com/spotify/scio) API.
 
 ## Complete/Game
 
-- [ ] UserScore
-- [ ] HourlyTeamScore
+- [x] UserScore
+- [x] HourlyTeamScore
 - [ ] StatefulTeamScore
 - [ ] LeaderBoard
 - [ ] GameStats
@@ -67,41 +67,6 @@ $ ./gradlew exec \
 $ ./gradlew execJar \
     -PmainClass=org.apache.beam.examples.scala.WordCount \
     --args='--output=/tmp/wc/wc --inputFile=/tmp/tagdata.txt'
-```
-
-## Word Count
-
-### Minimal Word Count
-
-```
-$ java -cp build/libs/beam-scala-examples-assembly-0.1.0-SNAPSHOT.jar \
-    org.apache.beam.examples.scala.MinimalWordCount
-```
-
-### Word Count
-
-```
-$ java -cp build/libs/beam-scala-examples-assembly-0.1.0-SNAPSHOT.jar \
-    org.apache.beam.examples.scala.WordCount \
-    --output=/tmp/wordcount
-```
-
-### Debugging Word Count
-
-```
-$ java -cp ./build/libs/beam-scala-examples-assembly-0.1.0-SNAPSHOT.jar \
-    org.apache.beam.examples.scala.DebuggingWordCount \
-    --filterPattern="Florish|stomach" \
-    --output=/tmp/bogus-donot-need
-```
-
-### Windowed Word Count
-
-```
-$ java -cp ./build/libs/beam-scala-examples-assembly-0.1.0-SNAPSHOT.jar \
-    org.apache.beam.examples.scala.WindowedWordCount \
-    --windowSize=10 \
-    --output=/tmp/wordcount-windowed
 ```
 
 # Local Dev
