@@ -76,12 +76,23 @@ object LeaderBoard {
     )
 
   /**
-   * Create a map of information that describes how to write pipeline output to BigQuery. This map
-   * is passed to the WriteToBigQuery constructor to write user score sums.
-   */
+    * Create a map of information that describes how to write pipeline output to BigQuery. This map
+    * is passed to the WriteToBigQuery constructor to write user score sums.
+    */
   def configureBigQueryWrite(): Map[String, FieldInfo[KV[String, JInteger]]] =
     Map[String, FieldInfo[KV[String, JInteger]]](
       "user" -> new FieldInfo("STRING", (ctx, _) => ctx.element.getKey),
       "total_score" -> new FieldInfo("INTEGER", (ctx, _) => ctx.element.getValue)
+    )
+
+  /**
+    * Create a map of information that describes how to write pipeline output to BigQuery. This map
+    * is used to write user score sums.
+    */
+  def configureGlobalWindowBigQueryWrite(): Map[String, FieldInfo[KV[String, JInteger]]] =
+    Map[String, FieldInfo[KV[String, JInteger]]](
+      "processing_time" -> new FieldInfo(
+        "STRING",
+        (_, _) => GameConstants.DATE_TIME_FORMATTER.print(Instant.now()))
     )
 }
