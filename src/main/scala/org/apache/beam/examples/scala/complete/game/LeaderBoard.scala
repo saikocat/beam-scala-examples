@@ -74,4 +74,14 @@ object LeaderBoard {
         (_, _) => GameConstants.DATE_TIME_FORMATTER.print(Instant.now())),
       "timing" -> new FieldInfo("STRING", (ctx, _) => ctx.pane.getTiming.toString)
     )
+
+  /**
+   * Create a map of information that describes how to write pipeline output to BigQuery. This map
+   * is passed to the WriteToBigQuery constructor to write user score sums.
+   */
+  def configureBigQueryWrite(): Map[String, FieldInfo[KV[String, JInteger]]] =
+    Map[String, FieldInfo[KV[String, JInteger]]](
+      "user" -> new FieldInfo("STRING", (ctx, _) => ctx.element.getKey),
+      "total_score" -> new FieldInfo("INTEGER", (ctx, _) => ctx.element.getValue)
+    )
 }
