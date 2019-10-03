@@ -26,7 +26,7 @@ using [Scio](https://github.com/spotify/scio) API.
 - [x] UserScore
 - [x] HourlyTeamScore
 - [ ] StatefulTeamScore
-- [ ] LeaderBoard
+- [x] LeaderBoard
 - [ ] GameStats
 
 ## Cookbook

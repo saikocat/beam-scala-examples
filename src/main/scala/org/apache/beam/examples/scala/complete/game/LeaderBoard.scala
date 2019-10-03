@@ -17,17 +17,29 @@
  */
 package org.apache.beam.examples.scala.complete.game
 
-import org.apache.beam.examples.scala.complete.game.utils.WriteToBigQuery.FieldInfo
+import scala.collection.JavaConverters._
+
+import org.apache.beam.examples.common.{ExampleOptions, ExampleUtils}
 import org.apache.beam.examples.scala.complete.game.utils.GameConstants
+import org.apache.beam.examples.scala.complete.game.utils.WriteToBigQuery
+import org.apache.beam.examples.scala.complete.game.utils.WriteToBigQuery.FieldInfo
+import org.apache.beam.examples.scala.complete.game.utils.WriteWindowedToBigQuery
 import org.apache.beam.examples.scala.typealias._
-import org.apache.beam.sdk.transforms.PTransform
+import org.apache.beam.sdk.extensions.gcp.options.GcpOptions
+import org.apache.beam.sdk.io.gcp.pubsub.PubsubIO
+import org.apache.beam.sdk.options._
+import org.apache.beam.sdk.options.StreamingOptions
+import org.apache.beam.sdk.transforms.{ParDo, PTransform}
 import org.apache.beam.sdk.transforms.windowing.AfterProcessingTime
 import org.apache.beam.sdk.transforms.windowing.AfterWatermark
-import org.apache.beam.sdk.transforms.windowing.FixedWindows
-import org.apache.beam.sdk.transforms.windowing.IntervalWindow
 import org.apache.beam.sdk.transforms.windowing.AfterWatermark.AfterWatermarkEarlyAndLate
+import org.apache.beam.sdk.transforms.windowing.FixedWindows
+import org.apache.beam.sdk.transforms.windowing.GlobalWindows
+import org.apache.beam.sdk.transforms.windowing.IntervalWindow
+import org.apache.beam.sdk.transforms.windowing.Repeatedly
 import org.apache.beam.sdk.transforms.windowing.Window
 import org.apache.beam.sdk.values.{KV, PCollection}
+import org.apache.beam.sdk.{Pipeline, PipelineResult}
 import org.joda.time.{Duration, Instant}
 
 /**
@@ -63,7 +75,93 @@ object LeaderBoard {
   final val FIVE_MINUTES: Duration = Duration.standardMinutes(5)
   final val TEN_MINUTES: Duration = Duration.standardMinutes(10)
 
-  import UserScore.{ExtractAndSumScore, GameActionInfo}
+  import UserScore.{ExtractAndSumScore, GameActionInfo, ParseEventFn}
+
+  def main(args: Array[String]): Unit = {
+    val options = PipelineOptionsFactory
+      .fromArgs(args: _*)
+      .withValidation()
+      .as(classOf[Options])
+    // Enforce that this pipeline is always run in streaming mode.
+    options.setStreaming(true)
+    val exampleUtils = new ExampleUtils(options)
+    val pipeline: Pipeline = Pipeline.create(options)
+
+    // Read game events from Pub/Sub using custom timestamps, which are extracted from the pubsub
+    // data elements, and parse the data.
+    val gameEvents: PCollection[GameActionInfo] =
+      pipeline
+        .apply(
+          PubsubIO
+            .readStrings()
+            .withTimestampAttribute(GameConstants.TIMESTAMP_ATTRIBUTE)
+            .fromTopic(options.getTopic))
+        .apply("ParseGameEvent", ParDo.of(new ParseEventFn()))
+
+    gameEvents
+      .apply(
+        "CalculateTeamScores",
+        new CalculateTeamScores(
+          Duration.standardMinutes(options.getTeamWindowDuration.toLong),
+          Duration.standardMinutes(options.getAllowedLateness.toLong))
+      )
+        // Write the results to BigQuery.
+      .apply(
+        "WriteTeamScoreSums",
+        new WriteWindowedToBigQuery(
+          options.as(classOf[GcpOptions]).getProject,
+          options.getDataset,
+          options.getLeaderBoardTableName + "_team",
+          configureWindowedTableWrite().asJava)
+      )
+    gameEvents
+      .apply(
+        "CalculateUserScores",
+        new CalculateUserScores(Duration.standardMinutes(options.getAllowedLateness.toLong)))
+        // Write the results to BigQuery.
+      .apply(
+        "WriteUserScoreSums",
+        new WriteToBigQuery(
+          options.as(classOf[GcpOptions]).getProject,
+          options.getDataset,
+          options.getLeaderBoardTableName + "_user",
+          configureGlobalWindowBigQueryWrite().asJava)
+      )
+
+    // Run the pipeline and wait for the pipeline to finish; capture cancellation requests from the
+    // command line.
+    val result: PipelineResult = pipeline.run()
+    exampleUtils.waitToFinish(result)
+  }
+
+  /** Options supported by LeaderBoard. */
+  trait Options extends ExampleOptions with StreamingOptions {
+
+    @Description("BigQuery Dataset to write tables to. Must already exist.")
+    @Validation.Required
+    def getDataset: String
+    def setDataset(value: String): Unit
+
+    @Description("Pub/Sub topic to read from")
+    @Validation.Required
+    def getTopic: String
+    def setTopic(value: String): Unit
+
+    @Description("Numeric value of fixed window duration for team analysis, in minutes")
+    @Default.Integer(60)
+    def getTeamWindowDuration: JInteger
+    def setTeamWindowDuration(value: JInteger): Unit
+
+    @Description("Numeric value of allowed data lateness, in minutes")
+    @Default.Integer(120)
+    def getAllowedLateness(): JInteger
+    def setAllowedLateness(value: JInteger): Unit
+
+    @Description("Prefix used for the BigQuery table names")
+    @Default.String("leaderboard")
+    def getLeaderBoardTableName: String
+    def setLeaderBoardTableName(value: String): Unit
+  }
 
   /**
     * Calculates scores for each team within the configured window duration.
