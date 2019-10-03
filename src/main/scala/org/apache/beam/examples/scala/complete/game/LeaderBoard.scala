@@ -20,8 +20,14 @@ package org.apache.beam.examples.scala.complete.game
 import org.apache.beam.examples.scala.complete.game.utils.WriteToBigQuery.FieldInfo
 import org.apache.beam.examples.scala.complete.game.utils.GameConstants
 import org.apache.beam.examples.scala.typealias._
+import org.apache.beam.sdk.transforms.PTransform
+import org.apache.beam.sdk.transforms.windowing.AfterProcessingTime
+import org.apache.beam.sdk.transforms.windowing.AfterWatermark
+import org.apache.beam.sdk.transforms.windowing.FixedWindows
 import org.apache.beam.sdk.transforms.windowing.IntervalWindow
-import org.apache.beam.sdk.values.KV
+import org.apache.beam.sdk.transforms.windowing.AfterWatermark.AfterWatermarkEarlyAndLate
+import org.apache.beam.sdk.transforms.windowing.Window
+import org.apache.beam.sdk.values.{KV, PCollection}
 import org.joda.time.{Duration, Instant}
 
 /**
@@ -56,6 +62,41 @@ import org.joda.time.{Duration, Instant}
 object LeaderBoard {
   final val FIVE_MINUTES: Duration = Duration.standardMinutes(5)
   final val TEN_MINUTES: Duration = Duration.standardMinutes(10)
+
+  import UserScore.{ExtractAndSumScore, GameActionInfo}
+
+  /**
+    * Calculates scores for each team within the configured window duration.
+    * Extract team/score pairs from the event stream, using hour-long windows by default.
+    */
+  class CalculateTeamScores(teamWindowDuration: Duration, allowedLateness: Duration)
+      extends PTransform[PCollection[GameActionInfo], PCollection[KV[String, JInteger]]] {
+    override def expand(infos: PCollection[GameActionInfo]): PCollection[KV[String, JInteger]] =
+      infos
+        .apply(
+          "LeaderboardTeamFixedWindows",
+          Window
+            .into[GameActionInfo](FixedWindows.of(teamWindowDuration))
+              // We will get early (speculative) results as well as cumulative processing of late data.
+            .triggering(trigger)
+            .withAllowedLateness(allowedLateness)
+            .accumulatingFiredPanes()
+        )
+          // Extract and sum teamname/score pairs from the event data.
+        .apply("ExtractTeamScore", new ExtractAndSumScore("team"))
+
+    val trigger: AfterWatermarkEarlyAndLate =
+      AfterWatermark
+        .pastEndOfWindow()
+        .withEarlyFirings(
+          AfterProcessingTime
+            .pastFirstElementInPane()
+            .plusDelayOf(FIVE_MINUTES))
+        .withLateFirings(
+          AfterProcessingTime
+            .pastFirstElementInPane()
+            .plusDelayOf(TEN_MINUTES))
+  }
 
   /**
     * Create a map of information that describes how to write pipeline output to BigQuery. This map
