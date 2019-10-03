@@ -99,6 +99,29 @@ object LeaderBoard {
   }
 
   /**
+    * Extract user/score pairs from the event stream using processing time, via global windowing. Get
+    * periodic updates on all users' running scores.
+    */
+  class CalculateUserScores(allowedLateness: Duration)
+      extends PTransform[PCollection[GameActionInfo], PCollection[KV[String, JInteger]]] {
+
+    override def expand(input: PCollection[GameActionInfo]): PCollection[KV[String, JInteger]] =
+      input
+        .apply(
+          "LeaderboardUserGlobalWindow",
+          Window
+            .into[GameActionInfo](new GlobalWindows())
+              // Get periodic results every ten minutes.
+            .triggering(Repeatedly.forever(
+              AfterProcessingTime.pastFirstElementInPane().plusDelayOf(TEN_MINUTES)))
+            .accumulatingFiredPanes()
+            .withAllowedLateness(allowedLateness)
+        )
+          // Extract and sum username/score pairs from the event data.
+        .apply("ExtractUserScore", new ExtractAndSumScore("user"))
+  }
+
+  /**
     * Create a map of information that describes how to write pipeline output to BigQuery. This map
     * is used to write team score sums and includes event timing information.
     */
