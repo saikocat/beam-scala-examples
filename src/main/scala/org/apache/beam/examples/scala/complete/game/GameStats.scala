@@ -17,15 +17,28 @@
  */
 package org.apache.beam.examples.scala.complete.game
 
+import scala.collection.JavaConverters._
+
+import org.apache.beam.examples.common.ExampleUtils
 import org.apache.beam.examples.scala.complete.game.utils.GameConstants
 import org.apache.beam.examples.scala.complete.game.utils.WriteToBigQuery.FieldInfo
+import org.apache.beam.examples.scala.complete.game.utils.WriteWindowedToBigQuery
 import org.apache.beam.examples.scala.typealias._
+import org.apache.beam.sdk.extensions.gcp.options.GcpOptions
+import org.apache.beam.sdk.io.gcp.pubsub.PubsubIO
 import org.apache.beam.sdk.metrics.{Counter, Metrics}
-import org.apache.beam.sdk.transforms.{DoFn, Mean, PTransform, ParDo, Sum, Values}
+import org.apache.beam.sdk.options._
+import org.apache.beam.sdk.transforms.{Combine, DoFn, MapElements, PTransform, ParDo}
+import org.apache.beam.sdk.transforms.{Mean, Sum, Values, View}
 import org.apache.beam.sdk.transforms.DoFn.ProcessElement
 import org.apache.beam.sdk.transforms.windowing.BoundedWindow
+import org.apache.beam.sdk.transforms.windowing.FixedWindows
 import org.apache.beam.sdk.transforms.windowing.IntervalWindow
-import org.apache.beam.sdk.values.{KV, PCollection, PCollectionView}
+import org.apache.beam.sdk.transforms.windowing.Sessions
+import org.apache.beam.sdk.transforms.windowing.TimestampCombiner
+import org.apache.beam.sdk.transforms.windowing.Window
+import org.apache.beam.sdk.values.{KV, PCollection, PCollectionView, TypeDescriptors}
+import org.apache.beam.sdk.{Pipeline, PipelineResult}
 import org.joda.time.Duration
 import org.slf4j.{Logger, LoggerFactory}
 
@@ -53,6 +66,154 @@ import org.slf4j.{Logger, LoggerFactory}
   * the same topic to which the Injector is publishing.
   */
 object GameStats {
+  import UserScore.{ExtractAndSumScore, GameActionInfo, ParseEventFn}
+
+  def main(args: Array[String]): Unit = {
+    val options = PipelineOptionsFactory
+      .fromArgs(args: _*)
+      .withValidation()
+      .as(classOf[Options])
+    // Enforce that this pipeline is always run in streaming mode.
+    options.setStreaming(true)
+    val exampleUtils = new ExampleUtils(options)
+    val pipeline: Pipeline = Pipeline.create(options)
+
+    // Read Events from Pub/Sub using custom timestamps
+    val rawEvents: PCollection[GameActionInfo] =
+      pipeline
+        .apply(
+          PubsubIO
+            .readStrings()
+            .withTimestampAttribute(GameConstants.TIMESTAMP_ATTRIBUTE)
+            .fromTopic(options.getTopic))
+        .apply("ParseGameEvent", ParDo.of(new ParseEventFn()))
+
+    // Extract username/score pairs from the event stream
+    val userEvents: PCollection[KV[String, Integer]] =
+      rawEvents.apply(
+        "ExtractUserScore",
+        MapElements
+          .into(TypeDescriptors.kvs(TypeDescriptors.strings(), TypeDescriptors.integers()))
+          .via((gInfo: GameActionInfo) => KV.of(gInfo.user, gInfo.score))
+      )
+
+    // Calculate the total score per user over fixed windows, and
+    // cumulative updates for late data.
+    val spammersView: PCollectionView[JMap[String, JInteger]] =
+      userEvents
+        .apply(
+          "FixedWindowsUser",
+          Window.into(
+            FixedWindows.of(Duration.standardMinutes(options.getFixedWindowDuration.toLong))))
+
+        // Filter out everyone but those with (SCORE_WEIGHT * avg) clickrate.
+          // These might be robots/spammers.
+        .apply("CalculateSpammyUsers", new CalculateSpammyUsers())
+        // Derive a view from the collection of spammer users. It will be used as a side input
+          // in calculating the team score sums, below.
+        .apply("CreateSpammersView", View.asMap())
+
+    // Calculate the total score per team over fixed windows,
+    // and emit cumulative updates for late data. Uses the side input derived above-- the set of
+    // suspected robots-- to filter out scores from those users from the sum.
+    // Write the results to BigQuery.
+    rawEvents
+      .apply(
+        "WindowIntoFixedWindows",
+        Window.into(
+          FixedWindows.of(Duration.standardMinutes(options.getFixedWindowDuration.toLong))))
+        // Filter out the detected spammer users, using the side input derived above.
+      .apply(
+        "FilterOutSpammers",
+        ParDo
+          .of(new FilterOutSpammers(spammersView))
+          .withSideInputs(spammersView))
+        // Extract and sum teamname/score pairs from the event data.
+      .apply("ExtractTeamScore", new ExtractAndSumScore("team"))
+        // Write the result to BigQuery
+      .apply(
+        "WriteTeamSums",
+        new WriteWindowedToBigQuery(
+          options.as(classOf[GcpOptions]).getProject,
+          options.getDataset,
+          options.getGameStatsTablePrefix + "_team",
+          configureWindowedWrite().asJava)
+      )
+
+    // Detect user sessions-- that is, a burst of activity separated by a gap from further
+    // activity. Find and record the mean session lengths.
+    // This information could help the game designers track the changing user engagement
+    // as their set of games changes.
+    userEvents
+      .apply(
+        "WindowIntoSessions",
+        Window
+          .into[KV[String, JInteger]](
+            Sessions.withGapDuration(Duration.standardMinutes(options.getSessionGap.toLong)))
+          .withTimestampCombiner(TimestampCombiner.END_OF_WINDOW)
+      )
+      // For this use, we care only about the existence of the session, not any particular
+        // information aggregated over it, so the following is an efficient way to do that.
+      .apply(Combine.perKey((_: JIterable[JInteger]) => 0))
+        // Get the duration per session.
+      .apply("UserSessionActivity", ParDo.of(new UserSessionInfoFn()))
+        // Re-window to process groups of session sums according to when the sessions complete.
+      .apply(
+        "WindowToExtractSessionMean",
+        Window.into(
+          FixedWindows.of(Duration.standardMinutes(options.getUserActivityWindowDuration.toLong))))
+        // Find the mean session duration in each window.
+      .apply(Mean.globally[JInteger]().withoutDefaults())
+        // Write this info to a BigQuery table.
+      .apply(
+        "WriteAvgSessionLength",
+        new WriteWindowedToBigQuery(
+          options.as(classOf[GcpOptions]).getProject,
+          options.getDataset,
+          options.getGameStatsTablePrefix + "_sessions",
+          configureSessionWindowWrite().asJava)
+      )
+
+    // Run the pipeline and wait for the pipeline to finish; capture cancellation requests from the
+    // command line.
+    val result: PipelineResult = pipeline.run()
+    exampleUtils.waitToFinish(result)
+  }
+
+  /** Filter out the detected spammer users, using the side input derived above.*/
+  class FilterOutSpammers(spammersView: PCollectionView[JMap[String, JInteger]])
+      extends DoFn[GameActionInfo, GameActionInfo] {
+    @ProcessElement
+    def processElement(ctx: ProcessContext): Unit =
+      // If the user is not in the spammers Map, output the data element.
+      if (Option(ctx.sideInput(spammersView).get(ctx.element.user.trim)).nonEmpty) {
+        ctx.output(ctx.element)
+      }
+  }
+
+  /** Options supported by GameStats. */
+  trait Options extends LeaderBoard.Options {
+    @Description("Numeric value of fixed window duration for user analysis, in minutes")
+    @Default.Integer(60)
+    def getFixedWindowDuration: JInteger
+    def setFixedWindowDuration(value: JInteger): Unit
+
+    @Description("Numeric value of gap between user sessions, in minutes")
+    @Default.Integer(5)
+    def getSessionGap: JInteger
+    def setSessionGap(value: JInteger): Unit
+
+    @Description(
+      "Numeric value of fixed window for finding mean of user session duration, in minutes")
+    @Default.Integer(30)
+    def getUserActivityWindowDuration: JInteger
+    def setUserActivityWindowDuration(value: JInteger): Unit
+
+    @Description("Prefix used for the BigQuery table names")
+    @Default.String("game_stats")
+    def getGameStatsTablePrefix: String
+    def setGameStatsTablePrefix(value: String): Unit
+  }
 
   /**
     * Filter out all users but those with a high clickrate, which we will consider as 'spammy' users.
