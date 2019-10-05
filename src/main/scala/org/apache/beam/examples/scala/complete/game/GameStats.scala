@@ -17,6 +17,12 @@
  */
 package org.apache.beam.examples.scala.complete.game
 
+import org.apache.beam.examples.scala.complete.game.utils.GameConstants
+import org.apache.beam.examples.scala.complete.game.utils.WriteToBigQuery.FieldInfo
+import org.apache.beam.examples.scala.typealias._
+import org.apache.beam.sdk.transforms.windowing.IntervalWindow
+import org.apache.beam.sdk.values.KV
+
 /**
   * This class is the fourth in a series of four pipelines that tell a story in a 'gaming' domain,
   * following UserScore, HourlyTeamScore, and LeaderBoard. New concepts:
@@ -40,4 +46,25 @@ package org.apache.beam.examples.scala.complete.game
   * The BigQuery dataset you specify must already exist. The PubSub topic you specify should be
   * the same topic to which the Injector is publishing.
   */
-object GameStats {}
+object GameStats {
+
+  /**
+    * Create a map of information that describes how to write pipeline output to BigQuery. This map
+    * is used to write information about team score sums.
+    */
+  def configureWindowedWrite(): Map[String, FieldInfo[KV[String, JInteger]]] =
+    LeaderBoard.configureWindowedTableWrite() - "timing"
+
+  /**
+    * Create a map of information that describes how to write pipeline output to BigQuery. This map
+    * is used to write information about mean user session time.
+    */
+  def configureSessionWindowWrite(): Map[String, FieldInfo[JDouble]] =
+    Map[String, FieldInfo[JDouble]](
+      "window_start" -> new FieldInfo("STRING", (_, boundedWindow) => {
+        val window = boundedWindow.asInstanceOf[IntervalWindow]
+        GameConstants.DATE_TIME_FORMATTER.print(window.start())
+      }),
+      "mean_duration" -> new FieldInfo("FLOAT", (ctx, _) => ctx.element)
+    )
+}
