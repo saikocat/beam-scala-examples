@@ -20,8 +20,12 @@ package org.apache.beam.examples.scala.complete.game
 import org.apache.beam.examples.scala.complete.game.utils.GameConstants
 import org.apache.beam.examples.scala.complete.game.utils.WriteToBigQuery.FieldInfo
 import org.apache.beam.examples.scala.typealias._
+import org.apache.beam.sdk.transforms.DoFn
+import org.apache.beam.sdk.transforms.DoFn.ProcessElement
+import org.apache.beam.sdk.transforms.windowing.BoundedWindow
 import org.apache.beam.sdk.transforms.windowing.IntervalWindow
 import org.apache.beam.sdk.values.KV
+import org.joda.time.Duration
 
 /**
   * This class is the fourth in a series of four pipelines that tell a story in a 'gaming' domain,
@@ -47,6 +51,19 @@ import org.apache.beam.sdk.values.KV
   * the same topic to which the Injector is publishing.
   */
 object GameStats {
+
+  /** Calculate and output an element's session duration. */
+  class UserSessionInfoFn extends DoFn[KV[String, JInteger], JInteger] {
+    @ProcessElement
+    def processElement(ctx: ProcessContext, boundedWindow: BoundedWindow): Unit = {
+      val window = boundedWindow.asInstanceOf[IntervalWindow]
+      val duration = new Duration(window.start, window.end)
+        .toPeriod()
+        .toStandardMinutes()
+        .getMinutes
+      ctx.output(duration)
+    }
+  }
 
   /**
     * Create a map of information that describes how to write pipeline output to BigQuery. This map
