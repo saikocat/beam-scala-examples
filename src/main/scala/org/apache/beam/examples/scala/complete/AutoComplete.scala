@@ -361,7 +361,7 @@ object AutoComplete {
     @ProcessElement
     def process(ctx: ProcessContext): Unit = {
       val elm: KV[String, JList[CompletionCandidate]] = ctx.element
-      val listHash: JLong = ctx.element.getValue.asScala.foldLeft(0L)(_ + _.hashCode.toLong)
+      val listHash: JLong = ctx.element.getValue.asScala.foldLeft(0L)(_ + _.hashCode().toLong)
       ctx.output(elm.getKey.hashCode.toLong + listHash)
     }
   }

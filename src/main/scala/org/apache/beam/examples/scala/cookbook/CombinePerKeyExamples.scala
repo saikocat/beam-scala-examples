@@ -55,7 +55,7 @@ object CombinePerKeyExamples {
       .apply(
         BigQueryIO
           .writeTableRows()
-          .to(options.getOutput)
+          .to(options.getOutput())
           .withSchema(schema)
           .withCreateDisposition(BigQueryIO.Write.CreateDisposition.CREATE_IF_NEEDED)
           .withWriteDisposition(BigQueryIO.Write.WriteDisposition.WRITE_TRUNCATE))

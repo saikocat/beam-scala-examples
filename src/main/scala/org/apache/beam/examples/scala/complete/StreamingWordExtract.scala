@@ -40,7 +40,7 @@ object StreamingWordExtract {
 
     val tableSpec =
       s"${options.getProject}:${options.getBigQueryDataset}.${options.getBigQueryTable}"
-    val schema = StringToRowConverterFn.getSchema
+    val schema = StringToRowConverterFn.getSchema()
     options.setBigQuerySchema(schema)
 
     val exampleUtils = new ExampleUtils(options)

@@ -77,7 +77,7 @@ object TriggerExample {
 
     val resultList: PCollectionList[TableRow] =
       pipeline
-        .apply("ReadMyFile", TextIO.read().from(options.getInput))
+        .apply("ReadMyFile", TextIO.read().from(options.getInput()))
         .apply("InsertRandomDelays", ParDo.of(new InsertDelaysFn()))
         .apply(ParDo.of(new ExtractFlowInfoFn()))
         .apply(new CalculateTotalFlow(options.getWindowDuration))
@@ -327,7 +327,7 @@ object TriggerExample {
   class SumCountRecordFn extends DoFn[KV[String, JIterable[Integer]], KV[String, String]] {
     @ProcessElement
     def processElement(ctx: ProcessContext): Unit = {
-      val flows: JIterable[Integer] = ctx.element.getValue
+      val flows: JIterable[Integer] = ctx.element.getValue()
       val (sum, numberOfRecords) = flows.asScala.foldLeft((0, 0L)) { (acc, value) =>
         (acc._1 + value, acc._2 + 1)
       }
@@ -396,7 +396,7 @@ object TriggerExample {
     def processElement(ctx: ProcessContext): Unit = {
       val random = new Random()
       val now: Instant = Instant.now()
-      val timestamp: Instant = (random.nextDouble < THRESHOLD) match {
+      val timestamp: Instant = (random.nextDouble() < THRESHOLD) match {
         case false => now
         case true => {
           val range = MAX_DELAY - MIN_DELAY

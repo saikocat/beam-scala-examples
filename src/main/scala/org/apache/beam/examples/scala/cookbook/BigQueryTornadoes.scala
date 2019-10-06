@@ -55,7 +55,7 @@ object BigQueryTornadoes {
       new TableFieldSchema().setName("tornado_count").setType("INTEGER"))
     val schema: TableSchema = new TableSchema().setFields(fields.asJava)
 
-    val rowsFromBigQuery: PCollection[TableRow] = options.getReadMethod match {
+    val rowsFromBigQuery: PCollection[TableRow] = options.getReadMethod() match {
       case TypedRead.Method.DIRECT_READ => {
         pipeline.apply(
           BigQueryIO
@@ -69,7 +69,7 @@ object BigQueryTornadoes {
           BigQueryIO
             .readTableRows()
             .from(options.getInput)
-            .withMethod(options.getReadMethod))
+            .withMethod(options.getReadMethod()))
       }
     }
 

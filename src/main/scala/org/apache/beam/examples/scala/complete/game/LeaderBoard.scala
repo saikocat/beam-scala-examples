@@ -103,7 +103,7 @@ object LeaderBoard {
         "CalculateTeamScores",
         new CalculateTeamScores(
           Duration.standardMinutes(options.getTeamWindowDuration.toLong),
-          Duration.standardMinutes(options.getAllowedLateness.toLong))
+          Duration.standardMinutes(options.getAllowedLateness().toLong))
       )
         // Write the results to BigQuery.
       .apply(
@@ -117,7 +117,7 @@ object LeaderBoard {
     gameEvents
       .apply(
         "CalculateUserScores",
-        new CalculateUserScores(Duration.standardMinutes(options.getAllowedLateness.toLong)))
+        new CalculateUserScores(Duration.standardMinutes(options.getAllowedLateness().toLong)))
         // Write the results to BigQuery.
       .apply(
         "WriteUserScoreSums",
