@@ -19,7 +19,7 @@ package org.apache.beam.examples.scala.complete.game
 
 import java.util.Objects
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.util.{Failure, Success, Try}
 
 import org.apache.beam.examples.scala.complete.game.utils.WriteToText

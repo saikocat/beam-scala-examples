@@ -19,7 +19,7 @@ package org.apache.beam.examples.scala.complete.game.utils
 
 import java.io.Serializable
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 import com.google.api.services.bigquery.model.{TableFieldSchema, TableRow, TableSchema}
 import com.google.api.services.bigquery.model.TableReference

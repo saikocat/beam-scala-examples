@@ -36,7 +36,7 @@ object MinimalWordCount {
       .apply(FlatMapElements
         .into(TypeDescriptors.strings())
         .via(new ProcessFunction[String, JIterable[String]] {
-          import scala.collection.JavaConverters._
+          import scala.jdk.CollectionConverters._
           override def apply(input: String): JIterable[String] =
             input.split("[^\\p{L}]+").toIterable.asJava
         }))

@@ -20,7 +20,7 @@ package org.apache.beam.examples.scala.complete.game.utils
 import java.io.Serializable
 import java.util.TimeZone
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 import org.apache.beam.examples.scala.typealias._
 import org.apache.beam.sdk.io.FileBasedSink

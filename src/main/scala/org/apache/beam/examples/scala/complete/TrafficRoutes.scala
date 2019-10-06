@@ -17,7 +17,7 @@
  */
 package org.apache.beam.examples.scala.complete
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.collection.mutable
 import scala.util.Try
 

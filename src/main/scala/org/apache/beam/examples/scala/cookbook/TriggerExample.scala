@@ -19,7 +19,7 @@ package org.apache.beam.examples.scala.cookbook
 
 import java.util.concurrent.TimeUnit
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.util.Random
 
 import com.google.api.services.bigquery.model.{

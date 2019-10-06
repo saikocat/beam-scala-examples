@@ -17,7 +17,7 @@
  */
 package org.apache.beam.examples.scala.cookbook
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 import com.google.api.services.bigquery.model.TableRow
 import org.apache.beam.sdk.Pipeline

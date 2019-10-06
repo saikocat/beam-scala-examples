@@ -17,7 +17,7 @@
  */
 package org.apache.beam.examples.scala.complete.game
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 import org.apache.beam.examples.common.ExampleUtils
 import org.apache.beam.examples.scala.complete.game.utils.GameConstants

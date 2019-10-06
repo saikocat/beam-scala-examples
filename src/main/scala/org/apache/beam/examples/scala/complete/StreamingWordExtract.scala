@@ -17,7 +17,7 @@
  */
 package org.apache.beam.examples.scala.complete
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 import com.google.api.services.bigquery.model.{TableFieldSchema, TableRow, TableSchema}
 import org.apache.beam.examples.common.{ExampleBigQueryTableOptions, ExampleOptions, ExampleUtils}

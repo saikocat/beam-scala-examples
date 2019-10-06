@@ -19,7 +19,7 @@ package org.apache.beam.examples.scala.complete
 
 import java.io.IOException
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.util.Try
 
 import com.google.api.services.bigquery.model.{TableFieldSchema, TableRow, TableSchema}
