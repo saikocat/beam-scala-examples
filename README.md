@@ -3,6 +3,10 @@
 Apache Beam examples with Scala using official Java API, and it's different from
 using [Scio](https://github.com/spotify/scio) API.
 
+NOTE: Scala `2.13.1` (lots of changes for collection migration) + Apache Beam 
+`2.15` (certain methods in the examples using master branch are patched via
+implicit)
+
 # Progress
 
 ## Word Count
