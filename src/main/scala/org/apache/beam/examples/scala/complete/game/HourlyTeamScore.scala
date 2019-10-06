@@ -141,12 +141,15 @@ object HourlyTeamScore {
     * about window start time.
     */
   def configureOutput(): Map[String, WriteToText.FieldFn[KV[String, JInteger]]] =
-    UserScore.configureOutput() ++ Map[String, WriteToText.FieldFn[KV[String, JInteger]]](
-      "window_start" -> { (_, boundedWindow) =>
-        {
-          val window = boundedWindow.asInstanceOf[IntervalWindow]
-          GameConstants.DATE_TIME_FORMATTER.print(window.start())
-        }
-      }
-    )
+    UserScore
+      .configureOutput()
+      .concat(
+        Map[String, WriteToText.FieldFn[KV[String, JInteger]]](
+          "window_start" -> { (_, boundedWindow) =>
+            {
+              val window = boundedWindow.asInstanceOf[IntervalWindow]
+              GameConstants.DATE_TIME_FORMATTER.print(window.start())
+            }
+          }
+        ))
 }

@@ -288,7 +288,7 @@ object GameStats {
     * is used to write information about team score sums.
     */
   def configureWindowedWrite(): Map[String, FieldInfo[KV[String, JInteger]]] =
-    LeaderBoard.configureWindowedTableWrite() - "timing"
+    LeaderBoard.configureWindowedTableWrite().removed("timing")
 
   /**
     * Create a map of information that describes how to write pipeline output to BigQuery. This map
