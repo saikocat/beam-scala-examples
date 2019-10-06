@@ -17,6 +17,10 @@
  */
 package org.apache.beam.examples.scala.complete.game
 
+import org.apache.beam.examples.scala.typealias._
+import org.apache.beam.examples.scala.complete.game.utils.WriteToBigQuery.FieldInfo
+import org.apache.beam.sdk.values.KV
+
 /**
   * This class is part of a series of pipelines that tell a story in a gaming domain. Concepts
   * include: stateful processing.
@@ -32,4 +36,12 @@ package org.apache.beam.examples.scala.complete.game
   * https://beam.apache.org/blog/2017/02/13/stateful-processing.html for more information on using
   * stateful processing.
   */
-object StatefulTeamScore {}
+object StatefulTeamScore {
+
+  /**
+   * Create a map of information that describes how to write pipeline output to BigQuery. This map
+   * is used to write team score sums.
+   */
+  def configureCompleteWindowedTableWrite():  Map[String, FieldInfo[KV[String, JInteger]]] =
+    LeaderBoard.configureWindowedTableWrite().removedAll(Array("timing", "window_start"))
+}
