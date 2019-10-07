@@ -17,13 +17,22 @@
  */
 package org.apache.beam.examples.scala.complete.game
 
+import scala.jdk.CollectionConverters._
+
+import org.apache.beam.examples.common.ExampleUtils
 import org.apache.beam.examples.scala.typealias._
+import org.apache.beam.examples.scala.complete.game.utils.GameConstants
 import org.apache.beam.examples.scala.complete.game.utils.WriteToBigQuery.FieldInfo
+import org.apache.beam.examples.scala.complete.game.utils.WriteWindowedToBigQuery
 import org.apache.beam.sdk.coders.VarIntCoder
+import org.apache.beam.sdk.extensions.gcp.options.GcpOptions
+import org.apache.beam.sdk.io.gcp.pubsub.PubsubIO
+import org.apache.beam.sdk.options.{Default, Description, PipelineOptionsFactory}
 import org.apache.beam.sdk.state.{StateSpec, StateSpecs, ValueState}
-import org.apache.beam.sdk.transforms.DoFn
+import org.apache.beam.sdk.transforms.{DoFn, MapElements, ParDo}
 import org.apache.beam.sdk.transforms.DoFn.{ProcessElement, StateId}
-import org.apache.beam.sdk.values.KV
+import org.apache.beam.sdk.values.{KV, TypeDescriptor, TypeDescriptors}
+import org.apache.beam.sdk.{Pipeline, PipelineResult}
 
 /**
   * This class is part of a series of pipelines that tell a story in a gaming domain. Concepts
@@ -41,7 +50,61 @@ import org.apache.beam.sdk.values.KV
   * stateful processing.
   */
 object StatefulTeamScore {
-  import UserScore.GameActionInfo
+  import UserScore.{GameActionInfo, ParseEventFn}
+
+  def main(args: Array[String]): Unit = {
+    val options = PipelineOptionsFactory
+      .fromArgs(args: _*)
+      .withValidation()
+      .as(classOf[Options])
+    // Enforce that this pipeline is always run in streaming mode.
+    options.setStreaming(true)
+    val exampleUtils = new ExampleUtils(options)
+    val pipeline: Pipeline = Pipeline.create(options)
+
+    pipeline
+    // Read game events from Pub/Sub using custom timestamps, which are extracted from the
+      // pubsub data elements, and parse the data.
+      .apply(
+        PubsubIO
+          .readStrings()
+          .withTimestampAttribute(GameConstants.TIMESTAMP_ATTRIBUTE)
+          .fromTopic(options.getTopic()))
+      .apply("ParseGameEvent", ParDo.of(new ParseEventFn()))
+        // Create <team, GameActionInfo> mapping. UpdateTeamScore uses team name as key.
+      .apply(
+        "MapTeamAsKey",
+        MapElements
+          .into(TypeDescriptors
+            .kvs(TypeDescriptors.strings(), TypeDescriptor.of(classOf[GameActionInfo])))
+          .via((gInfo: GameActionInfo) => KV.of(gInfo.team, gInfo))
+      )
+        // Outputs a team's score every time it passes a new multiple of the threshold.
+      .apply("UpdateTeamScore", ParDo.of(new UpdateTeamScoreFn(options.getThresholdScore())))
+        // Write the results to BigQuery.
+      .apply(
+        "WriteTeamLeaders",
+        new WriteWindowedToBigQuery(
+          options.as(classOf[GcpOptions]).getProject(),
+          options.getDataset(),
+          options.getLeaderBoardTableName() + "_team_leader",
+          configureCompleteWindowedTableWrite().asJava)
+      )
+
+    // Run the pipeline and wait for the pipeline to finish; capture cancellation requests from the
+    // command line.
+    val result: PipelineResult = pipeline.run()
+    exampleUtils.waitToFinish(result)
+  }
+
+  /** Options supported by StatefulTeamScore. */
+  trait Options extends LeaderBoard.Options {
+
+    @Description("Numeric value, multiple of which is used as threshold for outputting team score.")
+    @Default.Integer(5000)
+    def getThresholdScore(): JInteger
+    def setThresholdScore(value: JInteger): Unit
+  }
 
   /**
     * Tracks each team's score separately in a single state cell and outputs the score every time it

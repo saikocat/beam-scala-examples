@@ -29,7 +29,7 @@ implicit)
 
 - [x] UserScore
 - [x] HourlyTeamScore
-- [ ] StatefulTeamScore
+- [x] StatefulTeamScore
 - [x] LeaderBoard
 - [x] GameStats
 
