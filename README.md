@@ -43,9 +43,9 @@ implicit)
 - [x] MaxPerKeyExamples
 - [x] TriggerExample
 
-## Snippets
-
 ## Subprocess
+
+- [ ] ExampleEchoPipeline
 
 # Build
 
