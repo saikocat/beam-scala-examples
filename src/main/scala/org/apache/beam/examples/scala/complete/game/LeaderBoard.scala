@@ -95,7 +95,7 @@ object LeaderBoard {
           PubsubIO
             .readStrings()
             .withTimestampAttribute(GameConstants.TIMESTAMP_ATTRIBUTE)
-            .fromTopic(options.getTopic))
+            .fromTopic(options.getTopic()))
         .apply("ParseGameEvent", ParDo.of(new ParseEventFn()))
 
     gameEvents
@@ -110,8 +110,8 @@ object LeaderBoard {
         "WriteTeamScoreSums",
         new WriteWindowedToBigQuery(
           options.as(classOf[GcpOptions]).getProject,
-          options.getDataset,
-          options.getLeaderBoardTableName + "_team",
+          options.getDataset(),
+          options.getLeaderBoardTableName() + "_team",
           configureWindowedTableWrite().asJava)
       )
     gameEvents
@@ -123,8 +123,8 @@ object LeaderBoard {
         "WriteUserScoreSums",
         new WriteToBigQuery(
           options.as(classOf[GcpOptions]).getProject,
-          options.getDataset,
-          options.getLeaderBoardTableName + "_user",
+          options.getDataset(),
+          options.getLeaderBoardTableName() + "_user",
           configureGlobalWindowBigQueryWrite().asJava)
       )
 
@@ -139,12 +139,12 @@ object LeaderBoard {
 
     @Description("BigQuery Dataset to write tables to. Must already exist.")
     @Validation.Required
-    def getDataset: String
+    def getDataset(): String
     def setDataset(value: String): Unit
 
     @Description("Pub/Sub topic to read from")
     @Validation.Required
-    def getTopic: String
+    def getTopic(): String
     def setTopic(value: String): Unit
 
     @Description("Numeric value of fixed window duration for team analysis, in minutes")
@@ -159,7 +159,7 @@ object LeaderBoard {
 
     @Description("Prefix used for the BigQuery table names")
     @Default.String("leaderboard")
-    def getLeaderBoardTableName: String
+    def getLeaderBoardTableName(): String
     def setLeaderBoardTableName(value: String): Unit
   }
 

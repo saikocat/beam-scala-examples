@@ -85,7 +85,7 @@ object GameStats {
           PubsubIO
             .readStrings()
             .withTimestampAttribute(GameConstants.TIMESTAMP_ATTRIBUTE)
-            .fromTopic(options.getTopic))
+            .fromTopic(options.getTopic()))
         .apply("ParseGameEvent", ParDo.of(new ParseEventFn()))
 
     // Extract username/score pairs from the event stream
@@ -135,7 +135,7 @@ object GameStats {
         "WriteTeamSums",
         new WriteWindowedToBigQuery(
           options.as(classOf[GcpOptions]).getProject,
-          options.getDataset,
+          options.getDataset(),
           options.getGameStatsTablePrefix + "_team",
           configureWindowedWrite().asJava)
       )
@@ -169,7 +169,7 @@ object GameStats {
         "WriteAvgSessionLength",
         new WriteWindowedToBigQuery(
           options.as(classOf[GcpOptions]).getProject,
-          options.getDataset,
+          options.getDataset(),
           options.getGameStatsTablePrefix + "_sessions",
           configureSessionWindowWrite().asJava)
       )
