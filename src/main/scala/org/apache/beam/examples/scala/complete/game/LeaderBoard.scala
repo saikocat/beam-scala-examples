@@ -49,7 +49,7 @@ import org.joda.time.{Duration, Instant}
   * early/speculative results; using .accumulatingFiredPanes() to do cumulative processing of late-
   * arriving data.
   *
-  * <p>This pipeline processes an unbounded stream of 'game events'. The calculation of the team
+  * This pipeline processes an unbounded stream of 'game events'. The calculation of the team
   * scores uses fixed windowing based on event time (the time of the game play event), not processing
   * time (the time that an event is processed by the pipeline). The pipeline calculates the sum of
   * scores per team, for each window. By default, the team scores are calculated using one-hour
